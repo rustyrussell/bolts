@@ -588,6 +588,11 @@ Upon receipt of consecutive `tx_complete`s, each node:
   - MUST consider splice negotiation complete.
   - MUST consider the connection no longer quiescent.
 
+- Upon receipt of `tx_abort` for the splice transaction:
+  - MUST NOT have sent `tx_signatures`.
+  - MUST consider the connection no longer quiescent.
+  - MUST forget the in progress splice transaction.
+
 On reconnection:
 - MUST retransmit the last splice `tx_signatures` (if any).
 - MUST ignore any redundant `tx_signatures` it receives.
