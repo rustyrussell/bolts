@@ -621,8 +621,7 @@ A writer of an invoice:
     - MUST set (or not set) `replace_invoice` exactly as the invoice_request did.
     - MUST begin `description` with the `description` from the offer.
     - MAY append additional information to `description` (e.g. " +shipping").
-    - if it does not set `amount` to the *base invoice amount* calculated from the invoice_request:
-       - MUST append the reason to `description` (e.g. " 5% bulk discount").
+    - MUST set `amount` to the *base invoice amount* calculated from the invoice_request
     - MUST set (or not set) `issuer` exactly as the offer did.
     - MUST NOT set `refund_for`
     - MUST NOT set `refund_signature`
