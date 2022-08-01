@@ -219,7 +219,7 @@ The human-readable prefix for offers is `lno`.
         * [`tu64`:`max`]
     1. type: 30 (`node_id`)
     2. data:
-        * [`point32`:`node_id`]
+        * [`point`:`node_id`]
     1. type: 54 (`send_invoice`)
     1. type: 34 (`refund_for`)
     2. data:
@@ -354,7 +354,7 @@ invoices is `lnr`.
         * [`tu64`:`quantity`]
     1. type: 38 (`payer_key`)
     2. data:
-        * [`point32`:`key`]
+        * [`point`:`key`]
     1. type: 39 (`payer_note`)
     2. data:
         * [`...*utf8`:`note`]
@@ -490,7 +490,7 @@ using the `onion_message` `invoice` field.
         * [`...*utf8`:`issuer`]
     1. type: 30 (`node_id`)
     2. data:
-        * [`point32`:`node_id`]
+        * [`point`:`node_id`]
     1. type: 32 (`quantity`)
     2. data:
         * [`tu64`:`quantity`]
@@ -499,7 +499,7 @@ using the `onion_message` `invoice` field.
         * [`sha256`:`refunded_payment_hash`]
     1. type: 38 (`payer_key`)
     2. data:
-        * [`point32`:`key`]
+        * [`point`:`key`]
     1. type: 39 (`payer_note`)
     2. data:
         * [`...*utf8`:`note`]
