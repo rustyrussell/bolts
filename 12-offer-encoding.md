@@ -178,8 +178,7 @@ Signature = SIG("lightningoffersignature", Root, nodekey)
 
 Offers are a precursor to an invoice: readers will either request an invoice
 (or multiple) or send an invoice based on the offer.  An offer can be much longer-lived than a
-particular invoice, so it has some different characteristics; in particular, it
-can be recurring, and the amount can be in a non-lightning currency.  It's
+particular invoice, so it has some different characteristics; in particular the amount can be in a non-lightning currency.  It's
 also designed for compactness to fit inside a QR code easily.
 
 The human-readable prefix for offers is `lno`.
@@ -311,8 +310,6 @@ A reader of an offer:
     - MUST use the final `onionmsg_path` `point` in the first `blinded_path` as the `node_id`.
   - if `signature` is present, but is not a valid signature using `node_id` as described in [Signature Calculation](#signature-calculation):
     - MUST NOT respond to the offer.
-  - SHOULD gain user consent for recurring payments.
-  - SHOULD allow user to view and cancel recurring payments.
   - if it uses `amount` to provide the user with a cost estimate:
     - MUST warn user if amount of actual invoice differs significantly
         from that expectation.
@@ -390,8 +387,7 @@ The writer of an invoice_request:
   - otherwise:
     - MAY omit `amount`.
     - if it sets `amount`:
-      - MUST specify `amount`.`msat` as greater or equal to amount expected by the offer
-        (before any proportional period amount).
+      - MUST specify `amount`.`msat` as greater or equal to amount expected by the offer.
   - if the sender has a previous unpaid invoice (for the same offer) which it wants to cancel:
     - MUST set `payer_key` to the same as the previous invoice.
     - MUST set `replace_invoice` to the `payment_hash` or the previous invoice.
@@ -446,9 +442,7 @@ Users can give a tip (or obscure the amount sent) by specifying an
 `amount`.  The recipient will only accept this if
 the invoice request amount exceeds the amount it's expecting (i.e. its
 `amount` after any currency conversion, multiplied by `quantity`, if
-any).  Note that for recurring invoices with `proportional_amount`
-set, the recipient will scale the `amount` in the invoice request by the time in
-the period; the sender should not attempt to scale it.
+any).
 
 `replace_invoice` allows the mutually-agreed removal of an old unpaid
 invoice; the sender can use this in the case of stuck payments.  If
@@ -708,7 +702,7 @@ A reader of an invoice:
 
 Because the messaging layer is unreliable, it's quite possible to
 receive multiple requests for the same offer.  As it's the caller's
-responsibility not to reuse `payer_key` except for recurring invoices,
+responsibility not to reuse `payer_key`
 the writer doesn't have to check all the fields are duplicates before
 simply returning a previous invoice.  Note that such caching is optional,
 and should be carefully limited when e.g. currency conversion is involved,
@@ -726,12 +720,8 @@ Note that the recipient of the invoice can determine the expected
 amount from either the offer it received, or the invoice_request it
 sent, so often already has authorization for the expected amount.
 
-It's natural to set the `relative_expiry` of an invoice for a
-recurring offer to the end of the payment window for the period, but
-if that is a long time and the offer was in another currency, it's
-common to cap this at some maximum duration.  For example, omitting it
-implies the default of 7200 seconds, which is generally a sufficient
-time for payment.
+The default `relative_expiry` of 7200 seconds, which is generally a
+sufficient time for payment, even if new channels need to be opened.
 
 Rather than provide detailed per-hop-payinfo for each hop in every
 blinded path, we approximate by assuming they're uniform across each
@@ -789,8 +779,8 @@ A reader of an invoice_error:
 ## Rationale
 
 Usually an error message is sufficient for diagnostics, however there
-is at least one case where it should be programmatically parsable.  A
-recurring offer which sets `send_invoice` can also specify a currency,
+is at least one case where it should be programmatically parsable.  Am
+offer which sets `send_invoice` can also specify a currency,
 which opens the possibility for a disagreement on exchange rate.  In
 this case, the `suggested_value` reflects its expected value, and the
 sender can send a new invoice.
@@ -806,5 +796,6 @@ sender can send a new invoice.
    invoice, to make a shopping list.
 7. All-zero offer_id == gratuitous payment.
 8. Streaming invoices?
+9. Re-add recurrence.
 
 [1] https://www.youtube.com/watch?v=4SYc_flMnMQ
