@@ -79,7 +79,7 @@ Each of the forms documented here are in
 The supported ASCII encoding is the human-readable prefix, followed by a
 `1`, followed by a bech32-style data string of the TLVs in order,
 optionally interspersed with `+` (for indicating additional data is to
-come).
+come).  There is no checksum, unlike bech32m.
 
 ## Requirements
 
@@ -93,7 +93,7 @@ Readers of a bolt12 string:
 The use of bech32 is arbitrary but already exists in the bitcoin
 world.  We currently omit the six-character trailing checksum: QR
 codes have their own checksums anyway, and errors don't result in loss
-of funds.
+of funds, simply an invalid offer (or inability to parse).
 
 The use of `+` (which is ignored) allows use over limited
 text fields like Twitter:
