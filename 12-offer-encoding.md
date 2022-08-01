@@ -790,7 +790,7 @@ A reader of an invoice_error:
 ## Rationale
 
 Usually an error message is sufficient for diagnostics, however there
-is at least one case where it should be programatically parsable.  A
+is at least one case where it should be programmatically parsable.  A
 recurring offer which sets `send_invoice` can also specify a currency,
 which opens the possibility for a disagreement on exchange rate.  In
 this case, the `suggested_value` reflects its expected value, and the
