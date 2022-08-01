@@ -13,7 +13,7 @@
 
 # Limitations of BOLT 11
 
-The BOLT 11 invoice format has proven popular, but has several
+The BOLT 11 invoice format has proven popular but has several
 limitations:
 
 1. The entangling of bech32 encoding makes it awkward to send
@@ -21,25 +21,25 @@ limitations:
 2. The signature applying to the entire invoice makes it impossible
    to prove an invoice without revealing its entirety.
 3. Fields cannot generally be extracted for external use: the `h`
-   field was a boutique extraction of the `d` field, only.
-4. The lack of 'it's OK to be odd' rule makes backwards compatibility
+   field was a boutique extraction of the `d` field only.
+4. The lack of the 'it's OK to be odd' rule makes backward compatibility
    harder.
 5. The 'human-readable' idea of separating amounts proved fraught:
    `p` was often mishandled, and amounts in pico-bitcoin are harder
    than the modern satoshi-based counting.
-6. The bech32 encoding was found to have an issue with extensions,
+6. Developers found the bech32 encoding to have an issue with extensions,
    which means we want to replace or discard it anyway.
 7. The `payment_secret` designed to prevent probing by other nodes in
    the path was only useful if the invoice remained private between the
    payer and payee.
-8. Invoices must be given per-user, and are actively dangerous if two
+8. Invoices must be given per user and are actively dangerous if two
    payment attempts are made for the same user.
 
 
 # Payment Flow Scenarios
 
 Here we use "user" as shorthand for the individual user's lightning
-node, and "merchant" as the shorthand for the node of someone who is
+node and "merchant" as the shorthand for the node of someone who is
 selling or has sold something.
 
 There are two basic payment flows supported by BOLT 12:
@@ -52,7 +52,7 @@ The general user-pays-merchant flow is:
 4. The user makes a payment to the merchant indicated by the invoice.
 
 The merchant-pays-user flow (e.g. ATM or refund):
-1. The merchant provides a user-specific *offer* ("take my money") in a web page or QR code,
+1. The merchant provides a user-specific *offer* ("take my money") on a web page or QR code
    with an amount (for a refund, also a reference to the to-be-refunded
    invoice).
 2. The user sends an *invoice* for the amount in the *offer* (for a
@@ -68,8 +68,8 @@ claim they paid the invoice, too.[1]
 
 Providing a key in *invoice_request* allows a user to prove that they were the one
 to request the invoice.  In addition, the Merkle construction of the BOLT 12
-invoice signature allows the user to selectively reveal fields of the invoice
-in case of dispute.
+invoice signature allows the user to reveal invoice fields in case
+of a dispute selectively.
 
 # Encoding
 
@@ -84,13 +84,13 @@ come).
 ## Requirements
 
 Readers of a bolt12 string:
-- if it encounters a `+` followed zero or more whitespace characters between 
+- if it encounters a `+` followed by zero or more whitespace characters between 
   two bech32 characters:
   - MUST remove the `+` and whitespace.
 
 ## Rationale
 
-The use of bech32 is arbitrary, but already exists in the bitcoin
+The use of bech32 is arbitrary but already exists in the bitcoin
 world.  We currently omit the six-character trailing checksum: QR
 codes have their own checksums anyway, and errors don't result in loss
 of funds.
@@ -111,13 +111,13 @@ See [format-string-test.json](bolt12/format-string-test.json).
 ## Signature Calculation
 
 All signatures are created as per
-[BIP-340](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki),
+[BIP-340](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki)
 and tagged as recommended there.  Thus we define H(`tag`,`msg`) as
 SHA256(SHA256(`tag`) || SHA256(`tag`) || `msg`), and SIG(`tag`,`msg`,`key`)
 as the signature of H(`tag`,`msg`) using `key`.
 
 Each form is signed using one or more *signature TLV elements*: TLV
-types 240 through 1000.  For these
+types 240 through 1000.  For these,
 the tag is "lightning" || `messagename` || `fieldname`, and `msg` is the
 Merkle-root; "lightning" is the literal 9-byte ASCII string,
 `messagename` is the name of the TLV stream being signed (i.e. "offer", "invoice_request" or "invoice") and the `fieldname` is the TLV field containing the
@@ -127,20 +127,20 @@ The formulation of the Merkle tree is similar to that proposed in
 [BIP-341](https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki),
 with each TLV leaf paired with a nonce leaf to avoid
 revealing adjacent nodes in proofs (assuming there is a non-revealed TLV
-which has enough entropy).
+that enough entropy).
 
 The Merkle tree's leaves are, in TLV-ascending order for each tlv:
 1. The H("LnLeaf",tlv).
 2. The H("LnAll"||all-tlvs,tlv) where "all-tlvs" consists of all non-signature TLV entries appended in ascending order.
 
 The Merkle tree inner nodes are H("LnBranch", lesser-SHA256||greater-SHA256);
-this ordering means that proofs are more compact since left/right is
+this ordering means proofs are more compact since left/right is
 inherently determined.
 
-If there are not exactly a power of 2 leaves, then the tree depth will
+If there is not exactly a power of 2 leaves, then the tree depth will
 be uneven, with the deepest tree on the lowest-order leaves.
 
-e.g. consider the encoding of an `offer` `signature` with TLVs TLV1, TLV2 and TLV3:
+e.g. consider the encoding of an `offer` `signature` with TLVs TLV1, TLV2, and TLV3:
 
 ```
 L1=H("LnLeaf",TLV1)
@@ -178,9 +178,9 @@ Signature = SIG("lightningoffersignature", Root, nodekey)
 
 Offers are a precursor to an invoice: readers will either request an invoice
 (or multiple) or send an invoice based on the offer.  An offer can be much longer-lived than a
-particular invoice, so has some different characteristics; in particular it
+particular invoice, so it has some different characteristics; in particular, it
 can be recurring, and the amount can be in a non-lightning currency.  It's
-also designed for compactness, to easily fit inside a QR code.
+also designed for compactness to fit inside a QR code easily.
 
 The human-readable prefix for offers is `lno`.
 
@@ -240,7 +240,7 @@ The human-readable prefix for offers is `lno`.
 
 A writer of an offer:
   - if it sets `node_id`:
-    - MUST set `node_id` to the public key of the node to request the invoice from.
+    - MUST set `node_id` to the node's public key to request the invoice from.
   - otherwise:
     - MUST provide at least one `blinded_path`
     - MUST use the final `onionmsg_path` `point` in the first `blinded_path` as the implied `node_id` for `signature`.
@@ -275,7 +275,7 @@ A writer of an offer:
   - if it includes `paths`:
     - SHOULD ignore any invoice_request which does not use the path.
   - if it sets `issuer`:
-    - SHOULD set it to clearly identify the issuer of the invoice.
+    - SHOULD set it to identify the issuer of the invoice clearly.
     - if it includes a domain name:
       - SHOULD begin it with either user@domain or domain
       - MAY follow with a space and more text
@@ -322,9 +322,9 @@ A reader of an offer:
 
 ## Rationale
 
-A signature is optional, because it makes for a longer string (potentially
+A signature is optional because it makes for a longer string (potentially
 limiting QR code use on low-end cameras); if the offer has an error, no
-invoice will be given (or, for `send_invoice` offers, accepted), since
+invoice will be given (or, for `send_invoice` offers, accepted) since
 the `offer_id` already covers all the non-signature fields.
 
 The `node_id` is redundant if a `blinded_path` is provided: a public
@@ -419,14 +419,14 @@ The reader of an invoice_request:
       - if request contains `quantity`, multiply by `quantity`.
     - if the request contains `amount`:
       - MUST fail the request if its `amount` is less than the *base invoice amount*.
-      - MAY fail the request if its `amount` is much greater than the *base invoice amount*.
+      - MAY fail the request if its `amount` exceeds the *base invoice amount*.
       - MUST use the request's `amount` as the *base invoice amount*.
   - otherwise:
     - MUST fail the request if it does not contain `amount`.
     - MUST use the request `amount` as the *base invoice amount*.
   - if the offer has a `replace_invoice`:
     - if the `payment_hash` refers to an unpaid invoice for the same `offer_id` and `payer_key`:
-      - MUST immediately expire/remove that unpaid invoice such that it cannot be paid in future.
+      - MUST immediately expire/remove that unpaid invoice such that it cannot be paid in the future.
     - otherwise:
       - MUST fail the request.
 
@@ -435,7 +435,7 @@ The reader of an invoice_request:
 `payer_info` might typically contain information about the derivation of the
 `payer_key`.  This should not leak any information (such as using a simple
 BIP-32 derivation path); a valid system might be for a node to maintain a base
-payer key, and encode a 128-bit tweak here.  The payer_key would be derived by
+payer key and encode a 128-bit tweak here.  The payer_key would be derived by
 tweaking the base key with SHA256(payer_base_pubkey || tweak).
 
 `payer_note` allows you to compliment, taunt, or otherwise engrave
@@ -443,27 +443,27 @@ graffiti into the invoice for all to see.
 
 Users can give a tip (or obscure the amount sent) by specifying an
 `amount` in their invoice request, even though the offer specifies an
-`amount`.  Obviously this will only be accepted by the recipient if
+`amount`.  The recipient will only accept this if
 the invoice request amount exceeds the amount it's expecting (i.e. its
-`amount` after any currency conversion, multiplied by `quantity` if
+`amount` after any currency conversion, multiplied by `quantity`, if
 any).  Note that for recurring invoices with `proportional_amount`
-set, the `amount` in the invoice request will be scaled by the time in
+set, the recipient will scale the `amount` in the invoice request by the time in
 the period; the sender should not attempt to scale it.
 
-`replace_invoice` allows the mutually-agreed removal of and old unpaid
-invoice; this can be used in the case of stuck payments.  If
-successful in replacing the stuck invoice, the sender may make a
-second payment such that it can prove double-payment should the
+`replace_invoice` allows the mutually-agreed removal of an old unpaid
+invoice; the sender can use this in the case of stuck payments.  If
+the sender successfully replaces the stuck invoice, they may make a
+second payment so that it can prove double-payment should the
 receiver still accept the first, delayed payment.
 
 # Invoices
 
-Invoices are a request for payment, and when the payment is made 
+Invoices are a payment request, and when the payment is made, 
 it can be combined with the invoice to form a cryptographic receipt.
 
-The human-readable prefix for invoices is `lni`.  It can be sent in
+The human-readable prefix for invoices is `lni`.  The recipient can send it in
 response to an `invoice_request` or an `offer` with `send_invoice`
-using `onion_message` `invoice` field.
+using the `onion_message` `invoice` field.
 
 1. `tlv_stream`: `invoice`
 2. types:
