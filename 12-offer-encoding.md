@@ -261,8 +261,8 @@ A writer of an offer:
       - MUST specify `iso4217` as an ISO 4712 three-letter code.
       - MUST specify `amount` in the currency unit adjusted by the ISO 4712
         exponent (e.g. USD cents).
-  - if it supports offer features:
-    - SHOULD set `features` to the bitmap of offer features.
+  - if it supports bolt11 features:
+    - SHOULD set `features` to the bitmap of bolt11 features.
   - if the offer expires:
     - MUST set `absolute_expiry` `seconds_from_epoch` to the number of seconds
       after midnight 1 January 1970, UTC that invoice_request should not be
