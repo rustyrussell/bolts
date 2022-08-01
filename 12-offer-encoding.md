@@ -254,7 +254,7 @@ A writer of an offer:
     - MAY omit `chains`, implying that bitcoin is only chain.
   - if a specific minimum `amount` is required for successful payment:
     - MUST set `amount` to the amount expected (per item).
-    - if the currency for `amount` is that of the first entry in `chains`:
+    - if the currency for `amount` is that of all entries in `chains`:
       - MUST specify `amount` in multiples of the minimum lightning-payable unit
         (e.g. milli-satoshis for bitcoin).
     - otherwise:
