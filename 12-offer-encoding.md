@@ -5,10 +5,10 @@
   * [Limitations of BOLT 11](#limitations-of-bolt-11)
   * [Payment Flow Scenarios](#payment-flow-scenarios)
   * [Encoding](#encoding)
-  * [TLV Fields](#tlv-fields)
-  * [Invoices](#invoices)
+  * [Signature calculation](#signature-calculation)
   * [Offers](#offers)
   * [Invoice Requests](#invoice-requests)
+  * [Invoices](#invoices)
   * [Invoice Errors](#invoice-errors)
 
 # Limitations of BOLT 11
@@ -108,7 +108,7 @@ zzzzz
 
 See [format-string-test.json](bolt12/format-string-test.json).
 
-## Signature Calculation
+# Signature Calculation
 
 All signatures are created as per
 [BIP-340](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki)
