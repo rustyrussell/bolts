@@ -537,6 +537,8 @@ using the `onion_message` `invoice` field.
    * [`u32`:`fee_base_msat`]
    * [`u32`:`fee_proportional_millionths`]
    * [`u16`:`cltv_expiry_delta`]
+   * [`u64`:`htlc_minimum_msat`]
+   * [`u64`:`htlc_maximum_msat`]
    * [`u16`:`flen`]
    * [`flen*byte`:`features`]
 
