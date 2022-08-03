@@ -528,13 +528,6 @@ using the `onion_message` `invoice` field.
     1. type: 56 (`replace_invoice`)
     2. data:
         * [`sha256`:`payment_hash`]
-    1. type: 57 (`desthint`)
-    2. data:
-        * [`point`:`source`]
-        * [`short_channel_id`:`scid`]
-        * [`u32`:`fee_base_msat`]
-        * [`u32`:`fee_proportional_millionths`]
-        * [`u16`:`cltv_expiry_delta`]
     1. type: 240 (`signature`)
     2. data:
         * [`bip340sig`:`sig`]
@@ -582,23 +575,12 @@ A writer of an invoice:
     - for the bitcoin chain, it MUST set each `fallback_address` with
       `version` as a valid witness version and `address` as a valid witness
       program
-  - if it is connected only by private channels:
-    - if no node connecting a private channel supports blinded payments:
-      - MUST include `desthint` containing the private channel information.
-    - otherwise:
-      - MUST include `blinded_path` containing one or more paths to the node.
-  - otherwise:
-    - MAY include `blinded_path`.
-  - if it includes `blinded_path`:
-    - MUST specify `path` in order of most-preferred to least-preferred if
-      it has a preference.
-    - MUST include `blindedpay` with exactly one `payinfo` for
-      each `blinded_path` in `paths`, in order.
+  - MUST include `paths` containing one or more paths to the node.
+    - MUST specify `paths` in order of most-preferred to least-preferred if it has a preference.
+    - MUST include `blindedpay` with exactly one `blinded_payinfo` for each `blinded_path` in `paths`, in order.
     - if it includes `blinded_capacities`:
-      - MUST include exactly one `incoming_msat` (in millisatoshis) per `blinded_path`, reflecting the expected maximum amount that can be sent through the path.
+      - MUST include exactly one `u64` (in millisatoshis) per `blinded_path`, reflecting the expected maximum amount that can be sent through the path.
     - SHOULD ignore any payment which does not use one of the paths.
-  - otherwise:
-    - MUST NOT include `blinded_payinfo`.
   - MUST specify `amount`.`msat` in multiples of the minimum lightning-payable unit
     (e.g. milli-satoshis for bitcoin) for `chain` (or for bitcoin, if there is no `chain`).
   - if responding to an `invoice_request`:
@@ -638,7 +620,7 @@ A writer of an invoice:
 
 A reader of an invoice:
   - MUST reject the invoice if `signature` is not a valid signature using `node_id` as described in [Signature Calculation](#signature-calculation).
-  - MUST reject the invoice if `msat` is not present.
+  - MUST reject the invoice if `amount` is not present.
   - MUST reject the invoice if `description` is not present.
   - MUST reject the invoice if `created_at` is not present.
   - MUST reject the invoice if `payment_hash` is not present.
@@ -646,9 +628,11 @@ A reader of an invoice:
     - MUST reject the invoice if the current time since 1970-01-01 UTC is greater than `created_at` plus `seconds_from_creation`.
   - otherwise:
     - MUST reject the invoice if the current time since 1970-01-01 UTC is greater than `created_at` plus 7200.
-  - if `blinded_path` is present:
-    - MUST reject the invoice if `blinded_payinfo` is not present.
-    - MUST reject the invoice if `blinded_payinfo` does not contain exactly as many `payinfo` as total `onionmsg_path` in `blinded_path`.
+  - MUST reject the invoice if `paths` is not present or is empty.
+  - MUST reject the invoice if `blindedpay` is not present.
+    - MUST reject the invoice if `blindedpay` does not contain exactly one `blinded_payinfo` per `blinded_path`.
+  - if `blinded_capacities` is present:
+    - MUST reject the invoice if `blinded_capacities` does not contain exactly one `u64` per `blinded_path`.
   - SHOULD confirm authorization if `msat` is not within the amount range authorized.
   - if the invoice is a reply to an `invoice_request`:
      - MUST reject the invoice unless `offer_id` is equal to the id of the offer.
@@ -723,11 +707,12 @@ sent, so often already has authorization for the expected amount.
 The default `relative_expiry` of 7200 seconds, which is generally a
 sufficient time for payment, even if new channels need to be opened.
 
-Rather than provide detailed per-hop-payinfo for each hop in every
-blinded path, we approximate by assuming they're uniform across each
-particular blinded path.  This is simpler, and also avoids trivially
-revealing any distinguishing non-uniformity which may distinguish
-the path.
+Blinded paths provide an equivalent to `payment_secret` and `payment_metadata` used in BOLT 11.
+Even if `node_id` is public, we force the use of blinding paths to keep these features.
+If the recipient does not care about the added privacy offered by blinded paths, they can create a path of length 1 with only themselves.
+
+Rather than provide detailed per-hop-payinfo for each hop in a blinded path, we aggregate the fees and CLTV deltas.
+This avoids trivially revealing any distinguishing non-uniformity which may distinguish the path.
 
 It's often useful to provide capacity hints, particularly where more
 than one blinded path is included, for payers to use multi-part
@@ -736,9 +721,6 @@ payments.
 The invoice issuer is allowed to ignore `payer_note` (it has an odd
 number, so is optional), but if it does not, it must copy it exactly
 as the invoice_request specified.
-
-`desthint` is a compromise, to allow offers to be used with private
-channels before blinded payments are implemented everywhere.
 
 # Invoice Errors
 
