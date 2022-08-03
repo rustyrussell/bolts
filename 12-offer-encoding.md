@@ -230,7 +230,6 @@ The human-readable prefix for offers is `lno`.
 
 1. subtype: `blinded_path`
 2. data:
-   * [`point`:`first_node_id`]
    * [`point`:`blinding`]
    * [`byte`:`num_hops`]
    * [`num_hops*onionmsg_path`:`path`]
@@ -272,7 +271,11 @@ A writer of an offer:
   - otherwise:
     - MAY include `paths`.
   - if it includes `paths`:
-    - SHOULD ignore any invoice_request which does not use the path.
+    - if the `node_id` is not public:
+      - MUST ignore any invoice_request which does not use one of the `paths`.
+    - otherwise:
+      - MAY ignore any invoice_request which does not use one of the `paths`.
+    - MUST NOT blind the first `onionmsg_path` `node_id` point.
   - if it sets `issuer`:
     - SHOULD set it to identify the issuer of the invoice clearly.
     - if it includes a domain name:
@@ -315,6 +318,10 @@ A reader of an offer:
         from that expectation.
   - SHOULD not respond to an offer if the current time is after
     `absolute_expiry`.
+  - if `paths` is set:
+    - SHOULD use one or more `paths` to contact the node.
+    - MUST start the blinded path from the first `node_id` point	
+    - MUST blind the first `node_id` using `blinding`.
   - FIXME: more!
 
 ## Rationale
@@ -327,6 +334,11 @@ the `offer_id` already covers all the non-signature fields.
 The `node_id` is redundant if a `blinded_path` is provided: a public
 node can always arrange that the final `node_id` in the path is
 unblinded.
+
+A `blinded_path` is used as both a route hint (for a public node), and
+for receiver privacy.  The first `node_id` is not blinded, as the
+sender must know where the path begins, but it will have to apply the
+blinding to that first `node_id` to create a suitable onion.
 
 # Invoice Requests
 
