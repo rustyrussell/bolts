@@ -1210,7 +1210,7 @@ sign the resulting transaction (as defined in [BOLT #3](03-transactions.md)), an
 
 A sending node:
   - MUST NOT send a `commitment_signed` message that does not include any
-updates, or add or remove splices.
+updates, or adds a splice.
   - MAY send a `commitment_signed` message that only
 alters the fee.
   - MAY send a `commitment_signed` message that doesn't
