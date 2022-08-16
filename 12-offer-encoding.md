@@ -324,9 +324,8 @@ limiting QR code use on low-end cameras); if the offer has an error, no
 invoice will be given (or, for `send_invoice` offers, accepted) since
 the `offer_id` already covers all the non-signature fields.
 
-The `node_id` is redundant if a `blinded_path` is provided: a public
-node can always arrange that the final `node_id` in the path is
-unblinded.
+If `node_id` is anonymous, it might as well be selected from `blinded_path`
+(the final node will know how to tweak its real node id to provide signatures for this blinded id).
 
 # Invoice Requests
 
@@ -482,9 +481,6 @@ using the `onion_message` `invoice` field.
     1. type: 18 (`blindedpay`)
     2. data:
         * [`...*blinded_payinfo`:`payinfo`]
-    1. type: 19 (`blinded_capacities`)
-    2. data:
-        * [`...*u64`:`incoming_msat`]
     1. type: 20 (`issuer`)
     2. data:
         * [`...*utf8`:`issuer`]
@@ -512,9 +508,6 @@ using the `onion_message` `invoice` field.
     1. type: 44 (`relative_expiry`)
     2. data:
         * [`tu32`:`seconds_from_creation`]
-    1. type: 46 (`cltv`)
-    2. data:
-        * [`tu16`:`min_final_cltv_expiry`]
     1. type: 48 (`fallbacks`)
     2. data:
         * [`...*fallback_address`:`fallbacks`]
@@ -568,8 +561,6 @@ A writer of an invoice:
   - if the expiry for accepting payment is not 7200 seconds after `created_at`:
     - MUST set `relative_expiry` `seconds_from_creation` to the number of
       seconds after `created_at` that payment of this invoice should not be attempted.
-  - if the `min_final_cltv_expiry` for the last HTLC in the route is not 18:
-    - MUST set `min_final_cltv_expiry`.
   - if it accepts onchain payments:
     - MAY specify `fallbacks`
     - MUST specify `fallbacks` in order of most-preferred to least-preferred
@@ -580,8 +571,6 @@ A writer of an invoice:
   - MUST include `paths` containing one or more paths to the node.
     - MUST specify `paths` in order of most-preferred to least-preferred if it has a preference.
     - MUST include `blindedpay` with exactly one `blinded_payinfo` for each `blinded_path` in `paths`, in order.
-    - if it includes `blinded_capacities`:
-      - MUST include exactly one `u64` (in millisatoshis) per `blinded_path`, reflecting the expected maximum amount that can be sent through the path.
     - SHOULD ignore any payment which does not use one of the paths.
   - MUST specify `amount`.`msat` in multiples of the minimum lightning-payable unit
     (e.g. milli-satoshis for bitcoin) for `chain` (or for bitcoin, if there is no `chain`).
@@ -633,8 +622,6 @@ A reader of an invoice:
   - MUST reject the invoice if `paths` is not present or is empty.
   - MUST reject the invoice if `blindedpay` is not present.
     - MUST reject the invoice if `blindedpay` does not contain exactly one `blinded_payinfo` per `blinded_path`.
-  - if `blinded_capacities` is present:
-    - MUST reject the invoice if `blinded_capacities` does not contain exactly one `u64` per `blinded_path`.
   - SHOULD confirm authorization if `msat` is not within the amount range authorized.
   - if the invoice is a reply to an `invoice_request`:
      - MUST reject the invoice unless `offer_id` is equal to the id of the offer.
@@ -679,10 +666,6 @@ A reader of an invoice:
     - MUST ignore any `fallback_address` for which `version` is greater than 16.
     - MUST ignore any `fallback_address` for which `address` is less than 2 or greater than 40 bytes.
     - MUST ignore any `fallback_address` for which `address` does not meet known requirements for the given `version`
-  - if the `min_final_cltv_expiry` is specified:
-    - MUST use an expiry delta of at least that value when making the payment
-  - otherwise: 
-    - MUST use an expiry delta of at least 18 when making the payment
 
 ## Rationale
 
@@ -715,10 +698,6 @@ If the recipient does not care about the added privacy offered by blinded paths,
 
 Rather than provide detailed per-hop-payinfo for each hop in a blinded path, we aggregate the fees and CLTV deltas.
 This avoids trivially revealing any distinguishing non-uniformity which may distinguish the path.
-
-It's often useful to provide capacity hints, particularly where more
-than one blinded path is included, for payers to use multi-part
-payments.
 
 The invoice issuer is allowed to ignore `payer_note` (it has an odd
 number, so is optional), but if it does not, it must copy it exactly
