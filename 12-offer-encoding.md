@@ -120,8 +120,8 @@ Each form is signed using one or more *signature TLV elements*: TLV
 types 240 through 1000.  For these,
 the tag is "lightning" || `messagename` || `fieldname`, and `msg` is the
 Merkle-root; "lightning" is the literal 9-byte ASCII string,
-`messagename` is the name of the TLV stream being signed (i.e. "offer", "invoice_request" or "invoice") and the `fieldname` is the TLV field containing the
-signature (e.g. "signature" or "refund_signature").
+`messagename` is the name of the TLV stream being signed (i.e. "invoice_request" or "invoice") and the `fieldname` is the TLV field containing the
+signature (e.g. "signature").
 
 The formulation of the Merkle tree is similar to that proposed in
 [BIP-341](https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki),
@@ -224,9 +224,6 @@ The human-readable prefix for offers is `lno`.
     1. type: 34 (`refund_for`)
     2. data:
         * [`sha256`:`refunded_payment_hash`]
-    1. type: 240 (`signature`)
-    2. data:
-        * [`bip340sig`:`sig`]
 
 1. subtype: `blinded_path`
 2. data:
@@ -242,9 +239,6 @@ A writer of an offer:
     - MUST set `node_id` to the node's public key to request the invoice from.
   - otherwise:
     - MUST provide at least one `blinded_path`
-    - MUST use the final `onionmsg_path` `point` in the first `blinded_path` as the implied `node_id` for `signature`.
-  - MAY specify exactly one signature TLV: `signature`:
-    - If so, it MUST set `sig` to the signature using `node_id` as described in [Signature Calculation](#signature-calculation).
   - MUST set `description` to a complete description of the purpose
     of the payment.
   - if the chain for the invoice is not solely bitcoin:
@@ -308,8 +302,6 @@ A reader of an offer:
     - if `paths` is not set or does not contain at least one `blinded_path`:
       - MUST NOT respond to the offer.
     - MUST use the final `onionmsg_path` `point` in the first `blinded_path` as the `node_id`.
-  - if `signature` is present, but is not a valid signature using `node_id` as described in [Signature Calculation](#signature-calculation):
-    - MUST NOT respond to the offer.
   - if it uses `amount` to provide the user with a cost estimate:
     - MUST warn user if amount of actual invoice differs significantly
         from that expectation.
@@ -319,7 +311,7 @@ A reader of an offer:
 
 ## Rationale
 
-A signature is optional because it makes for a longer string (potentially
+A signature unnecessary, and makes for a longer string (potentially
 limiting QR code use on low-end cameras); if the offer has an error, no
 invoice will be given (or, for `send_invoice` offers, accepted) since
 the `offer_id` already covers all the non-signature fields.
