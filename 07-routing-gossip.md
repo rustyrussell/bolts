@@ -975,9 +975,7 @@ The origin node:
 A node:
   - SHOULD monitor the funding transactions in the blockchain, to identify
   channels that are being closed.
-  - if the funding output of a channel is being spent:
-    - if a `channel_update` had `splicing` in the `channel_flags`:
-      - SHOULD delay 10 blocks considering the output spent.
+  - 12 blocks after the funding output of a channel being spent:
     - SHOULD be removed from the local network view AND be considered closed.
   - if the announced node no longer has any associated open channels:
     - MAY prune nodes added through `node_announcement` messages from their
