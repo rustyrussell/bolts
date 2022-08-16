@@ -397,3 +397,7 @@ programmatically
 parsable
 TLVs
 AUD
+LnLeaf
+LnNonce
+LnBranch
+payinfo
