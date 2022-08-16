@@ -126,12 +126,11 @@ signature (e.g. "signature").
 The formulation of the Merkle tree is similar to that proposed in
 [BIP-341](https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki),
 with each TLV leaf paired with a nonce leaf to avoid
-revealing adjacent nodes in proofs (assuming there is a non-revealed TLV
-that enough entropy).
+revealing adjacent nodes in proofs.
 
 The Merkle tree's leaves are, in TLV-ascending order for each tlv:
 1. The H("LnLeaf",tlv).
-2. The H("LnAll"||all-tlvs,tlv) where "all-tlvs" consists of all non-signature TLV entries appended in ascending order.
+2. The H("LnNonce"||first-tlv,tlv-type) where first-tlv is the numerically-first TLV entry in the stream, and tlv-type is the "type" field (1-9 bytes) of the current tlv.
 
 The Merkle tree inner nodes are H("LnBranch", lesser-SHA256||greater-SHA256);
 this ordering means proofs are more compact since left/right is
@@ -140,15 +139,15 @@ inherently determined.
 If there is not exactly a power of 2 leaves, then the tree depth will
 be uneven, with the deepest tree on the lowest-order leaves.
 
-e.g. consider the encoding of an `offer` `signature` with TLVs TLV1, TLV2, and TLV3:
+e.g. consider the encoding of an `offer` `signature` with TLVs TLV1, TLV2, and TLV3 (of types 1, 2 and 3 respectively):
 
 ```
 L1=H("LnLeaf",TLV1)
-L1nonce=H("LnAll"||TLV1||TLV2||TLV3,TLV1) 
+L1nonce=H("LnNonce"||TLV1,1)
 L2=H("LnLeaf",TLV2)
-L2nonce=H("LnAll"||TLV1||TLV2||TLV3,TLV2) 
+L2nonce=H("LnNonce"||TLV1,2)
 L3=H("LnLeaf",TLV3)
-L3nonce=H("LnAll"||TLV1||TLV2||TLV3,TLV3) 
+L3nonce=H("LnNonce"||TLV1,3)
 
 Assume L1 < L1nonce, L2 > L2nonce and L3 > L3nonce.
 
@@ -328,6 +327,9 @@ invoices is `lnr`.
 
 1. `tlv_stream`: `invoice_request`
 2. types:
+    1. type: 1 (`payer_info`)
+    2. data:
+        * [`...*byte`:`blob`]
     1. type: 3 (`chain`)
     2. data:
         * [`chain_hash`:`chain`]
@@ -349,9 +351,6 @@ invoices is `lnr`.
     1. type: 39 (`payer_note`)
     2. data:
         * [`...*utf8`:`note`]
-    1. type: 50 (`payer_info`)
-    2. data:
-        * [`...*byte`:`blob`]
     1. type: 56 (`replace_invoice`)
     2. data:
         * [`sha256`:`payment_hash`]
@@ -362,6 +361,7 @@ invoices is `lnr`.
 ## Requirements for Invoice Requests
 
 The writer of an invoice_request:
+  - SHOULD set `payer_info` to an unpredictable series of bytes.
   - MUST set `payer_key` to a transient public key.
   - MUST remember the secret key corresponding to `payer_key`.
   - MUST set `offer_id` to the Merkle root of the offer as described in [Signature Calculation](#signature-calculation).
@@ -423,7 +423,8 @@ The reader of an invoice_request:
 `payer_key`.  This should not leak any information (such as using a simple
 BIP-32 derivation path); a valid system might be for a node to maintain a base
 payer key and encode a 128-bit tweak here.  The payer_key would be derived by
-tweaking the base key with SHA256(payer_base_pubkey || tweak).
+tweaking the base key with SHA256(payer_base_pubkey || tweak).  It's also
+the first entry (if present), ensuring an unpredictable nonce for hashing.
 
 `payer_note` allows you to compliment, taunt, or otherwise engrave
 graffiti into the invoice for all to see.
@@ -452,6 +453,9 @@ using the `onion_message` `invoice` field.
 
 1. `tlv_stream`: `invoice`
 2. types:
+    1. type: 1 (`payer_info`)
+    2. data:
+        * [`...*byte`:`blob`]
     1. type: 3 (`chain`)
     2. data:
         * [`chain_hash`:`chain`]
@@ -503,9 +507,6 @@ using the `onion_message` `invoice` field.
     1. type: 48 (`fallbacks`)
     2. data:
         * [`...*fallback_address`:`fallbacks`]
-    1. type: 50 (`payer_info`)
-    2. data:
-        * [`...*byte`:`blob`]
     1. type: 52 (`refund_signature`)
     2. data:
         * [`bip340sig`:`payer_signature`]
