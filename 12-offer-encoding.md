@@ -139,7 +139,7 @@ inherently determined.
 If there is not exactly a power of 2 leaves, then the tree depth will
 be uneven, with the deepest tree on the lowest-order leaves.
 
-e.g. consider the encoding of an `offer` `signature` with TLVs TLV1, TLV2, and TLV3 (of types 1, 2 and 3 respectively):
+e.g. consider the encoding of an `invoice` `signature` with TLVs TLV1, TLV2, and TLV3 (of types 1, 2 and 3 respectively):
 
 ```
 L1=H("LnLeaf",TLV1)
@@ -170,7 +170,7 @@ Assume L1A2A > L3A:
                            v          v
                 Root=H("LnBranch",L3A||L1A2A)
 
-Signature = SIG("lightningoffersignature", Root, nodekey)
+Signature = SIG("lightninginvoicesignature", Root, nodekey)
 ```
 
 # Offers
@@ -257,6 +257,7 @@ A writer of an offer:
       - MUST specify `offer_currency` `iso4217` as an ISO 4712 three-letter code.
       - MUST specify `offer_amount` in the currency unit adjusted by the ISO 4712
         exponent (e.g. USD cents).
+  - MAY set `offer_metadata` for its own use.
   - if it supports bolt11 features:
     - SHOULD set `offer_features` to the bitmap of bolt11 features.
   - if the offer expires:
@@ -318,9 +319,11 @@ A reader of an offer:
 
 The entire offer is reflected in the invoice_request, both for
 completeness (so all information will be returned in the invoice), and
-so that the offer node can be stateless.
+so that the offer node can be stateless.  This makes `offer_metadata`
+particularly useful, since it can contain an authentication cookie to
+validate the other fields.
 
-A signature unnecessary, and makes for a longer string (potentially
+A signature is unnecessary, and makes for a longer string (potentially
 limiting QR code use on low-end cameras); if the offer has an error, no
 invoice will be given (or, for `send_invoice` offers, accepted) since
 the `offer_id` already covers all the non-signature fields.
@@ -339,7 +342,7 @@ invoices is `lnr`.  It mirrors all the fields from the offer, except
 
 1. `tlv_stream`: `invoice_request`
 2. types:
-    1. type: 1 (`payer_info`)
+    1. type: 0 (`invoice_payer_info`)
     2. data:
         * [`...*byte`:`blob`]
     1. type: 2 (`offer_chains`)
@@ -503,7 +506,7 @@ using the `onion_message` `invoice` field.
 
 1. `tlv_stream`: `invoice`
 2. types:
-    1. type: 1 (`payer_info`)
+    1. type: 0 (`invoice_payer_info`)
     2. data:
         * [`...*byte`:`blob`]
     1. type: 2 (`offer_chains`)
