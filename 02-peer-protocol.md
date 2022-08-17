@@ -579,14 +579,42 @@ Upon receipt of consecutive `tx_complete`s, each node:
 - if either side has added an output other than the new channel funding output:
   - MUST fail the negotiation if the balance for that side is less than 1% of the total channel capacity.
 - SHOULD NOT fail if the splice transaction is nonstandard.
-- MUST increment the commitment number and send `commitment_signed`, including the signatures for the splice transaction.
 
-- Upon receipt of `revoke_and_ack` for the previous commitment:
-  - MUST send `tx_signatures` for the splice transaction.
+#### Signing and committing order
+The side of the splice that has added the least amount of satoshis to the splice or, if both added an equal amount, the lexicographical lower channel public key:
+- MUST send `commitment_signed` first.
 
-- Upon receipt of `tx_signatures` for the splice transaction:
-  - MUST consider splice negotiation complete.
-  - MUST consider the connection no longer quiescent.
+The other side:
+- MUST send `revoke_and_ack`, followed by `commitment_signed`.
+
+Then, the first side:
+- MUST send `revoke_and_ack`, followed by `tx_signatures` for the splice transaction.
+
+The other side:
+- MUST send `tx_signatures` for the splice transaction.
+
+#### Splice aborting
+The side that sent `commitment_signed` first:
+- MAY send `tx_abort` before sending `tx_signatures`.
+- MAY NOT send `tx_abort` after sending `tx_signatures`.
+
+The side that sent `commitment_signed` second:
+- MAY send `tx_abort` before sending `commitment_signed`.
+- MAY NOT send `tx_abort` after sending `commitment_signed`.
+
+Upon receiving `tx_abort` at a valid time:
+- MUST consider the splice aborted.
+- MUST consider the connection no longer quiescent.
+
+Upon receiving `tx_abort` at an invalid time:
+- SHOULD initiate a channel close procedure.
+
+Both sides of the splice:
+- MUST increment the commitment number when sending `commitment_signed`, including the signatures for the splice commitment transactions.
+
+Upon receipt of `tx_signatures` for the splice transaction:
+- MUST consider splice negotiation complete.
+- MUST consider the connection no longer quiescent.
 
 On reconnection:
 - MUST retransmit the last splice `tx_signatures` (if any).
