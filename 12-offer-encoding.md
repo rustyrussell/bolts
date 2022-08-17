@@ -258,8 +258,8 @@ A writer of an offer:
       - MUST specify `offer_amount` in the currency unit adjusted by the ISO 4712
         exponent (e.g. USD cents).
   - MAY set `offer_metadata` for its own use.
-  - if it supports bolt11 features:
-    - SHOULD set `offer_features` to the bitmap of bolt11 features.
+  - if it supports bolt12 features:
+    - MUST set `offer_features`.`features` to the bitmap of bolt12 features.
   - if the offer expires:
     - MUST set `offer_absolute_expiry` `seconds_from_epoch` to the number of seconds
       after midnight 1 January 1970, UTC that invoice_request should not be
@@ -433,10 +433,16 @@ The writer:
   - if the sender has a previous unpaid invoice (for the same offer) which it wants to cancel:
     - MUST set `invoice_payer_key` to the same as the previous invoice.
     - MUST set `invoice_replace`.`payment_hash` to the payment_hash of the previous invoice.
+  - if it supports bolt12 features:
+    - MUST set `invoice_request_features`.`features` to the bitmap of features.
 
 The reader:
   - MUST fail the request if `invoice_payer_key` is not present.
   - MUST fail the request if any fields have type greater or equal to 192.
+  - if `invoice_request_features` contains unknown _odd_ bits that are non-zero:
+    - MUST ignore the bit.
+  - if `invoice_request_features` contains unknown _even_ bits that are non-zero:
+    - MUST fail the request.
   - if `invoice_chain` is not present:
     - MUST fail the request if bitcoin is not a supported chain.
   - otherwise:
@@ -623,7 +629,7 @@ A writer of an invoice:
     `payment_preimage` that will be given in return for payment.
   - MUST specify exactly one signature TLV element: `signature`.
     - MUST set `sig` to the signature using `offer_node_id` as described in [Signature Calculation](#signature-calculation).
-  - if it has bolt11 features:
+  - if it supports bolt12 features:
     - MUST set `invoice_features`.`features` to the bitmap of features.
   - if the expiry for accepting payment is not 7200 seconds after `invoice_created_at`:
     - MUST set `invoice_relative_expiry`.`seconds_from_creation` to the number of
@@ -638,6 +644,7 @@ A writer of an invoice:
   - MUST include `invoice_paths` containing one or more paths to the node.
     - MUST specify `invoice_paths` in order of most-preferred to least-preferred if it has a preference.
     - MUST include `invoice_blindedpay` with exactly one `blinded_payinfo` for each `blinded_path` in `paths`, in order.
+    - MUST set `features` in each `blinded_payinfo` to match `encrypted_data_tlv`.`allowed_features` (or empty, if no `allowed_features`).
     - SHOULD ignore any payment which does not use one of the paths.
   - if responding to an `invoice_request`:
     - if `invoice_payer_key` and offer are identical to a previous `invoice_request`:
@@ -669,13 +676,18 @@ A reader of an invoice:
   - MUST reject the invoice if `offer_description` is not present.
   - MUST reject the invoice if `invoice_created_at` is not present.
   - MUST reject the invoice if `invoice_payment_hash` is not present.
+  - if `invoice_features` contains unknown _odd_ bits that are non-zero:
+    - MUST ignore the bit.
+  - if `invoice_features` contains unknown _even_ bits that are non-zero:
+    - MUST reject the invoice.
   - if `invoice_relative_expiry` is present:
     - MUST reject the invoice if the current time since 1970-01-01 UTC is greater than `invoice_created_at` plus `seconds_from_creation`.
   - otherwise:
     - MUST reject the invoice if the current time since 1970-01-01 UTC is greater than `invoice_created_at` plus 7200.
   - MUST reject the invoice if `invoice_paths` is not present or is empty.
   - MUST reject the invoice if `invoice_blindedpay` is not present.
-    - MUST reject the invoice if `invoice_blindedpay` does not contain exactly one `blinded_payinfo` per `invoice_paths`.`blinded_path`.
+  - MUST reject the invoice if `invoice_blindedpay` does not contain exactly one `blinded_payinfo` per `invoice_paths`.`blinded_path`.
+- MUST reject the invoice if `features` in any `blinded_payinfo` has any unknown even bits set.
   - SHOULD confirm authorization if `invoice_amount`.`msat` is not within the amount range authorized.
   - if the invoice is a reply to an `invoice_request`:
      - MUST reject the invoice if all fields less than type 192 do not exactly match the `invoice_request`
