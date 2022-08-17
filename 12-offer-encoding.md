@@ -209,19 +209,19 @@ The human-readable prefix for offers is `lno`.
     1. type: 16 (`offer_paths`)
     2. data:
         * [`...*blinded_path`:`paths`]
-    1. type: 20 (`offer_issuer`)
+    1. type: 18 (`offer_issuer`)
     2. data:
         * [`...*utf8`:`issuer`]
-    1. type: 22 (`offer_quantity_min`)
+    1. type: 20 (`offer_quantity_min`)
     2. data:
         * [`tu64`:`min`]
-    1. type: 24 (`offer_quantity_max`)
+    1. type: 22 (`offer_quantity_max`)
     2. data:
         * [`tu64`:`max`]
-    1. type: 30 (`offer_node_id`)
+    1. type: 24 (`offer_node_id`)
     2. data:
         * [`point`:`node_id`]
-    1. type: 36 (`offer_send_invoice`)
+    1. type: 26 (`offer_send_invoice`)
 
 1. subtype: `blinded_path`
 2. data:
@@ -233,7 +233,7 @@ The human-readable prefix for offers is `lno`.
 ## Requirements For Offers
 
 A writer of an offer:
-  - MUST NOT set any tlv fields greater or equal to 128, or tlv field 1.
+  - MUST NOT set any tlv fields greater or equal to 80, or tlv field 1.
   - if it sets `offer_node_id`:
     - MUST set `node_id` to the node's public key to request the invoice from.
   - otherwise:
@@ -284,7 +284,7 @@ A writer of an offer:
     - MUST NOT set `offer_quantity_min` or `offer_quantity_max` less than 1.
 
 A reader of an offer:
-  - if the offer contains any unknown TLV fields greater or equal to 128:
+  - if the offer contains any unknown TLV fields greater or equal to 80:
     - MUST NOT respond to the offer.
   - if `offer_features` contains unknown _odd_ bits that are non-zero:
     - MUST ignore the bit.
@@ -331,7 +331,7 @@ invoices is `lnr`.  It mirrors all the fields from the offer, except
 
 1. `tlv_stream`: `invoice_request`
 2. types:
-    1. type: 0 (`invoice_payer_info`)
+    1. type: 0 (`invoice_request_payer_info`)
     2. data:
         * [`...*byte`:`blob`]
     1. type: 2 (`offer_chains`)
@@ -358,34 +358,34 @@ invoices is `lnr`.  It mirrors all the fields from the offer, except
     1. type: 16 (`offer_paths`)
     2. data:
         * [`...*blinded_path`:`paths`]
-    1. type: 20 (`offer_issuer`)
+    1. type: 18 (`offer_issuer`)
     2. data:
         * [`...*utf8`:`issuer`]
-    1. type: 22 (`offer_quantity_min`)
+    1. type: 20 (`offer_quantity_min`)
     2. data:
         * [`tu64`:`min`]
-    1. type: 24 (`offer_quantity_max`)
+    1. type: 22 (`offer_quantity_max`)
     2. data:
         * [`tu64`:`max`]
-    1. type: 30 (`offer_node_id`)
+    1. type: 24 (`offer_node_id`)
     2. data:
         * [`point`:`node_id`]
-    1. type: 128 (`invoice_chain`)
+    1. type: 80 (`invoice_request_chain`)
     2. data:
         * [`chain_hash`:`chain`]
-    1. type: 130 (`invoice_amount`)
+    1. type: 82 (`invoice_request_amount`)
     2. data:
         * [`tu64`:`msat`]
-    1. type: 132 (`invoice_request_features`)
+    1. type: 84 (`invoice_request_features`)
     2. data:
         * [`...*byte`:`features`]
-    1. type: 134 (`invoice_quantity`)
+    1. type: 86 (`invoice_request_quantity`)
     2. data:
         * [`tu64`:`quantity`]
-    1. type: 136 (`invoice_payer_key`)
+    1. type: 88 (`invoice_request_payer_key`)
     2. data:
         * [`point`:`key`]
-    1. type: 137 (`invoice_payer_note`)
+    1. type: 89 (`invoice_request_payer_note`)
     2. data:
         * [`...*utf8`:`note`]
     1. type: 240 (`signature`)
@@ -396,81 +396,81 @@ invoices is `lnr`.  It mirrors all the fields from the offer, except
 
 The writer:
   - MUST copy all fields from the offer (including unknown fields).
-  - MUST NOT set any tlv fields greater or equal to 192.
+  - MUST NOT set any tlv fields greater or equal to 160.
   - if `offer_node_id` is not present:
      - MUST set `offer_node_id` to the final `onionmsg_path` `point` in the first `offer_blinded_path`
-  - SHOULD set `invoice_payer_info` to an unpredictable series of bytes.
-  - MUST set `invoice_payer_key` to a transient public key.
-  - MUST remember the secret key corresponding to `invoice_payer_key`.
-  - MUST NOT set or imply any `invoice_chain` not set or implied by `offer_chains`.
-  - MUST set `signature`.`sig` as detailed in [Signature Calculation](#signature-calculation) using the `invoice_payer_key`.
+  - SHOULD set `invoice_request_payer_info` to an unpredictable series of bytes.
+  - MUST set `invoice_request_payer_key` to a transient public key.
+  - MUST remember the secret key corresponding to `invoice_request_payer_key`.
+  - MUST NOT set or imply any `invoice_request_chain` not set or implied by `offer_chains`.
+  - MUST set `signature`.`sig` as detailed in [Signature Calculation](#signature-calculation) using the `invoice_request_payer_key`.
   - if `offer_quantity_min` or `offer_quantity_max` are present:
-    - MUST set `invoice_quantity`
+    - MUST set `invoice_request_quantity`
     - MUST set it within that (inclusive) range.
   - otherwise:
-    - MUST NOT set `invoice_quantity`
+    - MUST NOT set `invoice_request_quantity`
   - if `offer_amount`:
-    - MUST specify `invoice_amount`.`msat` in multiples of the minimum lightning-payable unit
+    - MUST specify `invoice_request_amount`.`msat` in multiples of the minimum lightning-payable unit
       (e.g. milli-satoshis for bitcoin) for `chain` (or for bitcoin, if there is no `chain`).
   - otherwise:
-    - MAY omit `invoice_amount`.
-    - if it sets `invoice_amount`:
-      - MUST specify `invoice_amount`.`msat` as greater or equal to amount expected by `offer_amount` (and, if present, `offer_currency`).
+    - MAY omit `invoice_request_amount`.
+    - if it sets `invoice_request_amount`:
+      - MUST specify `invoice_request_amount`.`msat` as greater or equal to amount expected by `offer_amount` (and, if present, `offer_currency`).
   - if it supports bolt12 features:
     - MUST set `invoice_request_features`.`features` to the bitmap of features.
 
 The reader:
-  - MUST fail the request if `invoice_payer_key` is not present.
-  - MUST fail the request if any fields have type greater or equal to 192.
+  - MUST fail the request if `invoice_request_payer_key` is not present.
+  - MUST fail the request if any fields have type greater or equal to 160.
   - if `invoice_request_features` contains unknown _odd_ bits that are non-zero:
     - MUST ignore the bit.
   - if `invoice_request_features` contains unknown _even_ bits that are non-zero:
     - MUST fail the request.
-  - if `invoice_chain` is not present:
+  - if `invoice_request_chain` is not present:
     - MUST fail the request if bitcoin is not a supported chain.
   - otherwise:
-    - MUST fail the request if `invoice_chain`.`chain` is not a supported chain.
+    - MUST fail the request if `invoice_request_chain`.`chain` is not a supported chain.
   - MUST fail the request if `invoice_request_features` contains unknown even bits.
   - MUST fail the request if `offer_send_invoice` is present.
   - MUST fail the request if the offer fields do not exactly match a valid, unexpired offer.
-  - MUST fail the request if `invoice_signature` is not correct as detailed in [Signature Calculation](#signature-calculation) using the `invoice_payer_key`.
+  - MUST fail the request if `invoice_request_signature` is not correct as detailed in [Signature Calculation](#signature-calculation) using the `invoice_request_payer_key`.
   - if `offer_quantity_min` or `offer_quantity_max` is present:
-    - MUST fail the request if there is no `invoice_quantity` field.
-    - MUST fail the request if `invoice_quantity` is not within that (inclusive) range.
+    - MUST fail the request if there is no `invoice_request_quantity` field.
+    - MUST fail the request if `invoice_request_quantity` is not within that (inclusive) range.
   - otherwise:
-    - MUST fail the request if there is an `invoice_quantity` field.
+    - MUST fail the request if there is an `invoice_request_quantity` field.
   - if `offer_amount` is present:
     - MUST calculate the *base invoice amount* using the `offer_amount`:
-      - if `offer_currency` is not the `invoice_chain` currency, convert to the
-        `invoice_chain` currency.
-      - if `invoice_quantity` is present, multiply by `invoice_quantity`.`quantity`.
-    - if `invoice_amount` is present:
-      - MUST fail the request if `invoice_amount`.`msat` is less than the *base invoice amount*.
-      - MAY fail the request if `invoice_amount`.`msat` exceeds the *base invoice amount*.
+      - if `offer_currency` is not the `invoice_request_chain` currency, convert to the
+        `invoice_request_chain` currency.
+      - if `invoice_request_quantity` is present, multiply by `invoice_request_quantity`.`quantity`.
+    - if `invoice_request_amount` is present:
+      - MUST fail the request if `invoice_request_amount`.`msat` is less than the *base invoice amount*.
+      - MAY fail the request if `invoice_request_amount`.`msat` exceeds the *base invoice amount*.
   - otherwise:
-    - MUST fail the request if it does not contain `invoice_amount`.
-  - if `invoice_amount` is present:
-    - MUST use `invoice_amount`.`msat` as the *base invoice amount*.
+    - MUST fail the request if it does not contain `invoice_request_amount`.
+  - if `invoice_request_amount` is present:
+    - MUST use `invoice_request_amount`.`msat` as the *base invoice amount*.
 
 ## Rationale
 
 The `offer_node_id` can be implied for the offer, where space is a premium, but should be included for simplicity in the `invoice_request` (and `invoice`).
 
-`invoice_payer_info` might typically contain information about the derivation of the
-`invoice_payer_key`.  This should not leak any information (such as using a simple
+`invoice_request_payer_info` might typically contain information about the derivation of the
+`invoice_request_payer_key`.  This should not leak any information (such as using a simple
 BIP-32 derivation path); a valid system might be for a node to maintain a base
 payer key and encode a 128-bit tweak here.  The payer_key would be derived by
 tweaking the base key with SHA256(payer_base_pubkey || tweak).  It's also
 the first entry (if present), ensuring an unpredictable nonce for hashing.
 
-`invoice_payer_note` allows you to compliment, taunt, or otherwise engrave
+`invoice_request_payer_note` allows you to compliment, taunt, or otherwise engrave
 graffiti into the invoice for all to see.
 
 Users can give a tip (or obscure the amount sent) by specifying an
-`invoice_amount` in their invoice request, even though the offer specifies an
+`invoice_request_amount` in their invoice request, even though the offer specifies an
 `offer_amount`.  The recipient will only accept this if
 the invoice request amount exceeds the amount it's expecting (i.e. its
-`offer_amount` after any currency conversion, multiplied by `invoice_quantity`, if
+`offer_amount` after any currency conversion, multiplied by `invoice_request_quantity`, if
 any).
 
 # Invoices
@@ -484,7 +484,7 @@ using the `onion_message` `invoice` field.
 
 1. `tlv_stream`: `invoice`
 2. types:
-    1. type: 0 (`invoice_payer_info`)
+    1. type: 0 (`invoice_request_payer_info`)
     2. data:
         * [`...*byte`:`blob`]
     1. type: 2 (`offer_chains`)
@@ -508,55 +508,55 @@ using the `onion_message` `invoice` field.
     1. type: 16 (`offer_paths`)
     2. data:
         * [`...*blinded_path`:`paths`]
-    1. type: 20 (`offer_issuer`)
+    1. type: 18 (`offer_issuer`)
     2. data:
         * [`...*utf8`:`issuer`]
-    1. type: 22 (`offer_quantity_min`)
+    1. type: 20 (`offer_quantity_min`)
         * [`tu64`:`min`]
-    1. type: 24 (`offer_quantity_max`)
+    1. type: 22 (`offer_quantity_max`)
     2. data:
         * [`tu64`:`max`]
-    1. type: 30 (`offer_node_id`)
+    1. type: 24 (`offer_node_id`)
     2. data:
         * [`point`:`node_id`]
-    1. type: 36 (`offer_send_invoice`)
-    1. type: 128 (`invoice_chain`)
+    1. type: 26 (`offer_send_invoice`)
+    1. type: 80 (`invoice_request_chain`)
     2. data:
         * [`chain_hash`:`chain`]
-    1. type: 130 (`invoice_amount`)
+    1. type: 82 (`invoice_request_amount`)
     2. data:
         * [`tu64`:`msat`]
-    1. type: 132 (`invoice_request_features`)
+    1. type: 84 (`invoice_request_features`)
     2. data:
         * [`...*byte`:`features`]
-    1. type: 134 (`invoice_quantity`)
+    1. type: 86 (`invoice_request_quantity`)
     2. data:
         * [`tu64`:`quantity`]
-    1. type: 136 (`invoice_payer_key`)
+    1. type: 88 (`invoice_request_payer_key`)
     2. data:
         * [`point`:`key`]
-    1. type: 137 (`invoice_payer_note`)
+    1. type: 89 (`invoice_request_payer_note`)
     2. data:
         * [`...*utf8`:`note`]
-    1. type: 196 (`invoice_paths`)
+    1. type: 160 (`invoice_paths`)
     2. data:
         * [`...*blinded_path`:`paths`]
-    1. type: 198 (`invoice_blindedpay`)
+    1. type: 162 (`invoice_blindedpay`)
     2. data:
         * [`...*blinded_payinfo`:`payinfo`]
-    1. type: 200 (`invoice_created_at`)
+    1. type: 164 (`invoice_created_at`)
     2. data:
         * [`tu64`:`timestamp`]
-    1. type: 202 (`invoice_payment_hash`)
+    1. type: 168 (`invoice_payment_hash`)
     2. data:
         * [`sha256`:`payment_hash`]
-    1. type: 204 (`invoice_relative_expiry`)
+    1. type: 170 (`invoice_relative_expiry`)
     2. data:
         * [`tu32`:`seconds_from_creation`]
-    1. type: 206 (`invoice_fallbacks`)
+    1. type: 172 (`invoice_fallbacks`)
     2. data:
         * [`...*fallback_address`:`fallbacks`]
-    1. type: 210 (`invoice_features`)
+    1. type: 174 (`invoice_features`)
     2. data:
         * [`...*byte`:`features`]
     1. type: 240 (`signature`)
@@ -610,27 +610,27 @@ A writer of an invoice:
     - MUST set `features` in each `blinded_payinfo` to match `encrypted_data_tlv`.`allowed_features` (or empty, if no `allowed_features`).
     - SHOULD ignore any payment which does not use one of the paths.
   - if responding to an `invoice_request`:
-    - if `invoice_payer_key` and offer are identical to a previous `invoice_request`:
+    - if `invoice_request_payer_key` and offer are identical to a previous `invoice_request`:
       - MAY simply reuse the previous invoice.
     - otherwise:
       - MUST NOT reuse a previous invoice.
-    - if `invoice_amount` is not present:
-      - MUST set `invoice_amount`.`msat` to the *base invoice amount* calculated from the invoice_request
+    - if `invoice_request_amount` is not present:
+      - MUST set `invoice_request_amount`.`msat` to the *base invoice amount* calculated from the invoice_request
   - otherwise (responding to a `offer_send_invoice` offer):
     - MUST fail the request if `offer_send_invoice` is not present.
     - MUST fail the request if the offer fields not do exactly match a valid, unexpired offer.
     - if `offer_quantity_min` or `offer_quantity_max` are present:
-      - MUST set `invoice_quantity`
+      - MUST set `invoice_request_quantity`
       - MUST set it within that (inclusive) range.
     - otherwise:
-      - MUST NOT set `invoice_quantity`
-    - MUST set `invoice_payer_key` to `offer_node_id`.
-    - MUST set `invoice_payer_info`
+      - MUST NOT set `invoice_request_quantity`
+    - MUST set `invoice_request_payer_key` to `offer_node_id`.
+    - MUST set `invoice_request_payer_info`
 	  - SHOULD set it to at least 16 random bytes.
 
 A reader of an invoice:
   - MUST reject the invoice if `signature` is not a valid signature using `offer_node_id` as described in [Signature Calculation](#signature-calculation).
-  - MUST reject the invoice if `invoice_amount` is not present.
+  - MUST reject the invoice if `invoice_request_amount` is not present.
   - MUST reject the invoice if `offer_description` is not present.
   - MUST reject the invoice if `invoice_created_at` is not present.
   - MUST reject the invoice if `invoice_payment_hash` is not present.
@@ -646,26 +646,26 @@ A reader of an invoice:
   - MUST reject the invoice if `invoice_blindedpay` is not present.
   - MUST reject the invoice if `invoice_blindedpay` does not contain exactly one `blinded_payinfo` per `invoice_paths`.`blinded_path`.
 - MUST reject the invoice if `features` in any `blinded_payinfo` has any unknown even bits set.
-  - SHOULD confirm authorization if `invoice_amount`.`msat` is not within the amount range authorized.
+  - SHOULD confirm authorization if `invoice_request_amount`.`msat` is not within the amount range authorized.
   - if the invoice is a reply to an `invoice_request`:
-     - MUST reject the invoice if all fields less than type 192 do not exactly match the `invoice_request`
+     - MUST reject the invoice if all fields less than type 160 do not exactly match the `invoice_request`
   - otherwise, if responding to an `offer_send_invoice` offer:
     - MUST fail the request if `offer_send_invoice` is not present.
     - MUST fail the request if the offer fields not do exactly match a valid, unexpired offer.
-    - if `invoice_chain` is not present:
+    - if `invoice_request_chain` is not present:
        - MUST reject the invoice if bitcoin is not a supported chain for the offer.
     - otherwise:
-      - MUST reject the invoice if `invoice_chain` is not a supported chain for the offer.
+      - MUST reject the invoice if `invoice_request_chain` is not a supported chain for the offer.
     - if `offer_quantity_min` or `offer_quantity_max` is present:
-      - MUST reject the invoice if there is no `invoice_quantity` field.
-      - MUST reject the invoice if `invoice_quantity` is not within that (inclusive) range.
+      - MUST reject the invoice if there is no `invoice_request_quantity` field.
+      - MUST reject the invoice if `invoice_request_quantity` is not within that (inclusive) range.
     - otherwise:
-      - MUST reject the invoice if there is an `invoice_quantity` field.
+      - MUST reject the invoice if there is an `invoice_request_quantity` field.
   - otherwise: (not an `invoice_request` reply, nor for `offer_send_invoice`):
-    - if `invoice_chain` is not present:
+    - if `invoice_request_chain` is not present:
        - MUST reject the invoice if bitcoin is not a supported chain.
     - otherwise:
-       - MUST reject the invoice if `invoice_chain` is not a supported chain.
+       - MUST reject the invoice if `invoice_request_chain` is not a supported chain.
   - for the bitcoin chain, if the invoice specifies `invoice_fallbacks`:
     - MUST ignore any `fallback_address` for which `version` is greater than 16.
     - MUST ignore any `fallback_address` for which `address` is less than 2 or greater than 40 bytes.
@@ -675,7 +675,7 @@ A reader of an invoice:
 
 Because the messaging layer is unreliable, it's quite possible to
 receive multiple requests for the same offer.  As it's the caller's
-responsibility not to reuse `invoice_payer_key`
+responsibility not to reuse `invoice_request_payer_key`
 the writer doesn't have to check all the fields are duplicates before
 simply returning a previous invoice.  Note that such caching is optional,
 and should be carefully limited when e.g. currency conversion is involved,
@@ -703,7 +703,7 @@ If the recipient does not care about the added privacy offered by blinded paths,
 Rather than provide detailed per-hop-payinfo for each hop in a blinded path, we aggregate the fees and CLTV deltas.
 This avoids trivially revealing any distinguishing non-uniformity which may distinguish the path.
 
-The invoice issuer is allowed to ignore `invoice_payer_note` (it has an odd
+The invoice issuer is allowed to ignore `invoice_request_payer_note` (it has an odd
 number, so is optional), but must still copy it exactly.
 
 
