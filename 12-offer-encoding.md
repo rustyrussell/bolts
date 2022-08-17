@@ -55,8 +55,7 @@ The merchant-pays-user flow (e.g. ATM or refund):
 1. The merchant provides a user-specific *offer* ("take my money") on a web page or QR code
    with an amount (for a refund, also a reference to the to-be-refunded
    invoice).
-2. The user sends an *invoice* for the amount in the *offer* (for a
-   refund, a proof that they requested the original)
+2. The user sends an *invoice* for the amount in the *offer*
 3. The merchant makes a payment to the user indicated by the invoice.
 
 ## Payment Proofs and Payer Proofs
@@ -222,9 +221,6 @@ The human-readable prefix for offers is `lno`.
     1. type: 30 (`offer_node_id`)
     2. data:
         * [`point`:`node_id`]
-    1. type: 34 (`offer_refund_for`)
-    2. data:
-        * [`sha256`:`refunded_payment_hash`]
     1. type: 36 (`offer_send_invoice`)
 
 1. subtype: `blinded_path`
@@ -286,13 +282,6 @@ A writer of an offer:
     - if both:
       - MUST set `offer_quantity_min` less than or equal to `offer_quantity_max`.
     - MUST NOT set `offer_quantity_min` or `offer_quantity_max` less than 1.
-  - if `offer_send_invoice` is present:
-    - if the offer is for a partial or full refund for a previously-paid
-      invoice:
-      - SHOULD set `refunded_payment_hash` to the `payment_hash` of that
-        invoice.
-  - otherwise:
-    - MUST NOT set `refunded_payment_hash`.
 
 A reader of an offer:
   - if the offer contains any unknown TLV fields greater or equal to 128:
@@ -335,7 +324,7 @@ If `node_id` is anonymous, it might as well be selected from `blinded_path`
 
 Invoice Requests are a request for an invoice; the human-readable prefix for
 invoices is `lnr`.  It mirrors all the fields from the offer, except
-`offer_send_invoice` and `offer_refund_for` which cannot cause invoice_requests.
+`offer_send_invoice` which cannot cause invoice_requests.
 
 
 ## TLV Fields for `invoice_request`
@@ -448,7 +437,7 @@ The reader:
   - otherwise:
     - MUST fail the request if `invoice_chain`.`chain` is not a supported chain.
   - MUST fail the request if `invoice_request_features` contains unknown even bits.
-  - MUST fail the request if `offer_send_invoice` or `offer_refund_for` are present.
+  - MUST fail the request if `offer_send_invoice` is present.
   - MUST fail the request if the offer fields do not exactly match a valid, unexpired offer.
   - MUST fail the request if `invoice_signature` is not correct as detailed in [Signature Calculation](#signature-calculation) using the `invoice_payer_key`.
   - if `offer_quantity_min` or `offer_quantity_max` is present:
@@ -547,9 +536,6 @@ using the `onion_message` `invoice` field.
     1. type: 30 (`offer_node_id`)
     2. data:
         * [`point`:`node_id`]
-    1. type: 34 (`offer_refund_for`)
-    2. data:
-        * [`sha256`:`refunded_payment_hash`]
     1. type: 36 (`offer_send_invoice`)
     1. type: 128 (`invoice_chain`)
     2. data:
@@ -590,9 +576,6 @@ using the `onion_message` `invoice` field.
     1. type: 206 (`invoice_fallbacks`)
     2. data:
         * [`...*fallback_address`:`fallbacks`]
-    1. type: 208 (`invoice_refund_signature`)
-    2. data:
-        * [`bip340sig`:`payer_signature`]
     1. type: 210 (`invoice_features`)
     2. data:
         * [`...*byte`:`features`]
@@ -664,11 +647,6 @@ A writer of an invoice:
     - MUST set `invoice_payer_key` to `offer_node_id`.
     - MUST set `invoice_payer_info`
 	  - SHOULD set it to at least 16 random bytes.
-    - if `offer_refund_for` is present:
-      - MUST set `invoice_refund_signature` to the signature of the
-        `refunded_payment_hash` using `messagename` of "invoice" and `fieldname` of "invoice_refund_signature" and the private key corresponding to `offer_node_id`.
-    - otherwise:
-      - MUST NOT set `invoice_refund_signature`
 
 A reader of an invoice:
   - MUST reject the invoice if `signature` is not a valid signature using `offer_node_id` as described in [Signature Calculation](#signature-calculation).
@@ -703,10 +681,6 @@ A reader of an invoice:
       - MUST reject the invoice if `invoice_quantity` is not within that (inclusive) range.
     - otherwise:
       - MUST reject the invoice if there is an `invoice_quantity` field.
-    - if `offer_refund_for` is present:
-      - MUST reject the invoice if `invoice_payer_key` does not match the invoice whose `invoice_payment_hash` is equal to `offer_refund_for`.`refunded_payment_hash`
-      - MUST reject the invoice if `invoice_refund_signature` is not set.
-      - MUST reject the invoice if `invoice_refund_signature` is not a valid signature using `invoice_payer_key` as described in [Signature Calculation](#signature-calculation).
   - otherwise: (not an `invoice_request` reply, nor for `offer_send_invoice`):
     - if `invoice_chain` is not present:
        - MUST reject the invoice if bitcoin is not a supported chain.
@@ -810,5 +784,6 @@ sender can send a new invoice.
 7. All-zero offer_id == gratuitous payment.
 8. Streaming invoices?
 9. Re-add recurrence.
+10. Re-add `offer_refund_for` for `offer_send_invoice` to support proofs.
 
 [1] https://www.youtube.com/watch?v=4SYc_flMnMQ
