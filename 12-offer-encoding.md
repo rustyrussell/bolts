@@ -388,9 +388,6 @@ invoices is `lnr`.  It mirrors all the fields from the offer, except
     1. type: 137 (`invoice_payer_note`)
     2. data:
         * [`...*utf8`:`note`]
-    1. type: 138 (`invoice_replace`)
-    2. data:
-        * [`sha256`:`payment_hash`]
     1. type: 240 (`signature`)
     2. data:
         * [`bip340sig`:`sig`]
@@ -419,9 +416,6 @@ The writer:
     - MAY omit `invoice_amount`.
     - if it sets `invoice_amount`:
       - MUST specify `invoice_amount`.`msat` as greater or equal to amount expected by `offer_amount` (and, if present, `offer_currency`).
-  - if the sender has a previous unpaid invoice (for the same offer) which it wants to cancel:
-    - MUST set `invoice_payer_key` to the same as the previous invoice.
-    - MUST set `invoice_replace`.`payment_hash` to the payment_hash of the previous invoice.
   - if it supports bolt12 features:
     - MUST set `invoice_request_features`.`features` to the bitmap of features.
 
@@ -457,11 +451,6 @@ The reader:
     - MUST fail the request if it does not contain `invoice_amount`.
   - if `invoice_amount` is present:
     - MUST use `invoice_amount`.`msat` as the *base invoice amount*.
-  - if `invoice_replace` is present:
-    - if the `invoice_replace`.`payment_hash` refers to an unpaid invoice for the same offer and `invoice_payer_key`:
-      - MUST immediately expire/remove that unpaid invoice such that it cannot be paid in the future.
-    - otherwise:
-      - MUST fail the request.
 
 ## Rationale
 
@@ -483,12 +472,6 @@ Users can give a tip (or obscure the amount sent) by specifying an
 the invoice request amount exceeds the amount it's expecting (i.e. its
 `offer_amount` after any currency conversion, multiplied by `invoice_quantity`, if
 any).
-
-`invoice_replace` allows the mutually-agreed removal of an old unpaid
-invoice; the sender can use this in the case of stuck payments.  If
-the sender successfully replaces the stuck invoice, they may make a
-second payment so that it can prove double-payment should the
-receiver still accept the first, delayed payment.
 
 # Invoices
 
@@ -555,9 +538,6 @@ using the `onion_message` `invoice` field.
     1. type: 137 (`invoice_payer_note`)
     2. data:
         * [`...*utf8`:`note`]
-    1. type: 138 (`invoice_replace`)
-    2. data:
-        * [`sha256`:`payment_hash`]
     1. type: 196 (`invoice_paths`)
     2. data:
         * [`...*blinded_path`:`paths`]
@@ -785,5 +765,7 @@ sender can send a new invoice.
 8. Streaming invoices?
 9. Re-add recurrence.
 10. Re-add `offer_refund_for` for `offer_send_invoice` to support proofs.
+11. Re-add `invoice_replace` for requesting replacement of a (stuck-payment) 
+    invoice with a new one.
 
 [1] https://www.youtube.com/watch?v=4SYc_flMnMQ
