@@ -490,6 +490,9 @@ using the `onion_message` `invoice` field.
     1. type: 2 (`offer_chains`)
     2. data:
         * [`...*chain_hash`:`chains`]
+    1. type: 4 (`offer_metadata`)
+    2. data:
+        * [`...*byte`:`data`]
     1. type: 6 (`offer_currency`)
     2. data:
         * [`...*utf8`:`iso4217`]
@@ -702,10 +705,6 @@ If the recipient does not care about the added privacy offered by blinded paths,
 
 Rather than provide detailed per-hop-payinfo for each hop in a blinded path, we aggregate the fees and CLTV deltas.
 This avoids trivially revealing any distinguishing non-uniformity which may distinguish the path.
-
-The invoice issuer is allowed to ignore `invoice_request_payer_note` (it has an odd
-number, so is optional), but must still copy it exactly.
-
 
 # Invoice Errors
 
