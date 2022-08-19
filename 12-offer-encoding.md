@@ -233,11 +233,8 @@ The human-readable prefix for offers is `lno`.
 ## Requirements For Offers
 
 A writer of an offer:
-  - MUST NOT set any tlv fields greater or equal to 80, or tlv field 1.
-  - if it sets `offer_node_id`:
-    - MUST set `node_id` to the node's public key to request the invoice from.
-  - otherwise:
-    - MUST provide at least one `offer_blinded_path`
+  - MUST NOT set any tlv fields greater or equal to 80, or tlv field 0.
+  - MUST set `offer_node_id` to the node's public key to request the invoice from.
   - MUST set `offer_description` to a complete description of the purpose
     of the payment.
   - if the chain for the invoice is not solely bitcoin:
@@ -294,9 +291,7 @@ A reader of an offer:
   - if `offer_description` is not set:
     - MUST NOT respond to the offer.
   - if `offer_node_id` is not set:
-    - if `offer_paths` is not set or does not contain at least one `blinded_path`:
-      - MUST NOT respond to the offer.
-    - MUST use the final `onionmsg_path` `point` in the first `blinded_path` as the `node_id`.
+    - MUST NOT respond to the offer.
   - if it uses `offer_amount` to provide the user with a cost estimate:
     - MUST warn user if amount of actual invoice differs significantly
         from that expectation.
@@ -317,15 +312,16 @@ limiting QR code use on low-end cameras); if the offer has an error, no
 invoice will be given (or, for `send_invoice` offers, accepted) since
 the `offer_id` already covers all the non-signature fields.
 
-If `node_id` is anonymous, it might as well be selected from `blinded_path`
-(the final node will know how to tweak its real node id to provide signatures for this blinded id).
-
 # Invoice Requests
 
 Invoice Requests are a request for an invoice; the human-readable prefix for
 invoices is `lnr`.  It mirrors all the fields from the offer, except
 `offer_send_invoice` which cannot cause invoice_requests.
 
+Note: the `invoice_request_payer_info` is numbered 0 (not in the
+80-159 range for other invoice_request fields) as this is the first
+TLV element, which ensures payer-provided entropy is used in hashing
+for [Signature Calculation](#signature-calculation).
 
 ## TLV Fields for `invoice_request`
 
@@ -397,8 +393,6 @@ invoices is `lnr`.  It mirrors all the fields from the offer, except
 The writer:
   - MUST copy all fields from the offer (including unknown fields).
   - MUST NOT set any tlv fields greater or equal to 160.
-  - if `offer_node_id` is not present:
-     - MUST set `offer_node_id` to the final `onionmsg_path` `point` in the first `offer_blinded_path`
   - SHOULD set `invoice_request_payer_info` to an unpredictable series of bytes.
   - MUST set `invoice_request_payer_key` to a transient public key.
   - MUST remember the secret key corresponding to `invoice_request_payer_key`.
@@ -453,8 +447,6 @@ The reader:
     - MUST use `invoice_request_amount`.`msat` as the *base invoice amount*.
 
 ## Rationale
-
-The `offer_node_id` can be implied for the offer, where space is a premium, but should be included for simplicity in the `invoice_request` (and `invoice`).
 
 `invoice_request_payer_info` might typically contain information about the derivation of the
 `invoice_request_payer_key`.  This should not leak any information (such as using a simple
@@ -591,7 +583,7 @@ A writer of an invoice:
      - MUST copy all non-signature fields from the invoice_request (including unknown fields).
   - MUST set `invoice_created_at` to the number of seconds since Midnight 1
     January 1970, UTC when the offer was created.
-  - MUST set `invoice_payment_hash` to the SHA2 256-bit hash of the
+  - MUST set `invoice_payment_hash` to the SHA256 hash of the
     `payment_preimage` that will be given in return for payment.
   - MUST specify exactly one signature TLV element: `signature`.
     - MUST set `sig` to the signature using `offer_node_id` as described in [Signature Calculation](#signature-calculation).
@@ -648,7 +640,7 @@ A reader of an invoice:
   - MUST reject the invoice if `invoice_paths` is not present or is empty.
   - MUST reject the invoice if `invoice_blindedpay` is not present.
   - MUST reject the invoice if `invoice_blindedpay` does not contain exactly one `blinded_payinfo` per `invoice_paths`.`blinded_path`.
-- MUST reject the invoice if `features` in any `blinded_payinfo` has any unknown even bits set.
+  - MUST reject the invoice if `features` in any `blinded_payinfo` has any unknown even bits set.
   - SHOULD confirm authorization if `invoice_request_amount`.`msat` is not within the amount range authorized.
   - if the invoice is a reply to an `invoice_request`:
      - MUST reject the invoice if all fields less than type 160 do not exactly match the `invoice_request`
