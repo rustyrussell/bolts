@@ -116,7 +116,7 @@ SHA256(SHA256(`tag`) || SHA256(`tag`) || `msg`), and SIG(`tag`,`msg`,`key`)
 as the signature of H(`tag`,`msg`) using `key`.
 
 Each form is signed using one or more *signature TLV elements*: TLV
-types 240 through 1000.  For these,
+types 240 through 1000 (inclusive).  For these,
 the tag is "lightning" || `messagename` || `fieldname`, and `msg` is the
 Merkle-root; "lightning" is the literal 9-byte ASCII string,
 `messagename` is the name of the TLV stream being signed (i.e. "invoice_request" or "invoice") and the `fieldname` is the TLV field containing the
