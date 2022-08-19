@@ -441,10 +441,8 @@ The reader:
     - if `invoice_request_amount` is present:
       - MUST fail the request if `invoice_request_amount`.`msat` is less than the *base invoice amount*.
       - MAY fail the request if `invoice_request_amount`.`msat` exceeds the *base invoice amount*.
-  - otherwise:
+  - otherwise (no `offer_amount`):
     - MUST fail the request if it does not contain `invoice_request_amount`.
-  - if `invoice_request_amount` is present:
-    - MUST use `invoice_request_amount`.`msat` as the *base invoice amount*.
 
 ## Rationale
 
@@ -554,6 +552,9 @@ using the `onion_message` `invoice` field.
     1. type: 174 (`invoice_features`)
     2. data:
         * [`...*byte`:`features`]
+    1. type: 176 (`invoice_amount`)
+    2. data:
+        * [`tu64`:`msat`]
     1. type: 240 (`signature`)
     2. data:
         * [`bip340sig`:`sig`]
@@ -609,8 +610,10 @@ A writer of an invoice:
       - MAY simply reuse the previous invoice.
     - otherwise:
       - MUST NOT reuse a previous invoice.
-    - if `invoice_request_amount` is not present:
-      - MUST set `invoice_request_amount`.`msat` to the *base invoice amount* calculated from the invoice_request
+    - if `invoice_request_amount` is present:
+      - MUST set `invoice_amount` to `invoice_request_amount`
+    - otherwise: (no `invoice_request_amount`, so must have `offer_amount`):
+      - MUST set `invoice_amount`.`msat` to the *base invoice amount*.
   - otherwise (responding to a `offer_send_invoice` offer):
     - MUST fail the request if `offer_send_invoice` is not present.
     - MUST fail the request if the offer fields not do exactly match a valid, unexpired offer.
@@ -625,7 +628,7 @@ A writer of an invoice:
 
 A reader of an invoice:
   - MUST reject the invoice if `signature` is not a valid signature using `offer_node_id` as described in [Signature Calculation](#signature-calculation).
-  - MUST reject the invoice if `invoice_request_amount` is not present.
+  - MUST reject the invoice if `invoice_amount` is not present.
   - MUST reject the invoice if `offer_description` is not present.
   - MUST reject the invoice if `invoice_created_at` is not present.
   - MUST reject the invoice if `invoice_payment_hash` is not present.
@@ -641,7 +644,7 @@ A reader of an invoice:
   - MUST reject the invoice if `invoice_blindedpay` is not present.
   - MUST reject the invoice if `invoice_blindedpay` does not contain exactly one `blinded_payinfo` per `invoice_paths`.`blinded_path`.
   - MUST reject the invoice if `features` in any `blinded_payinfo` has any unknown even bits set.
-  - SHOULD confirm authorization if `invoice_request_amount`.`msat` is not within the amount range authorized.
+  - SHOULD confirm authorization if `invoice_amount`.`msat` is not within the amount range authorized.
   - if the invoice is a reply to an `invoice_request`:
      - MUST reject the invoice if all fields less than type 160 do not exactly match the `invoice_request`
   - otherwise, if responding to an `offer_send_invoice` offer:
