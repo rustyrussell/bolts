@@ -45,18 +45,19 @@ selling or has sold something.
 There are two basic payment flows supported by BOLT 12:
 
 The general user-pays-merchant flow is:
-1. A merchant publishes an *offer* ("send me money"), such as on a web page or a QR code.
+1. A merchant publishes an *offer*, such as on a web page or a QR code.
 2. Every user requests a unique *invoice* over the lightning network
-   using an *invoice_request* message.
+   using an *invoice_request* message, which contains the offer fields.
 3. The merchant replies with the *invoice*.
-4. The user makes a payment to the merchant indicated by the invoice.
+4. The user makes a payment to the merchant as indicated by the invoice.
 
 The merchant-pays-user flow (e.g. ATM or refund):
-1. The merchant provides a user-specific *offer* ("take my money") on a web page or QR code
-   with an amount (for a refund, also a reference to the to-be-refunded
-   invoice).
-2. The user sends an *invoice* for the amount in the *offer*
-3. The merchant makes a payment to the user indicated by the invoice.
+1. The merchant publishes an *invoice_request* which contains offer fields
+   which refer to its attempt to send money, including an amount.
+2. The user sends an *invoice* over the lightning network for the amount in the
+   *invoice_request*, using a temporary *invoice key*.
+3. The merchant confirms the *invoice key* to ensure it's about to pay the correct
+   person, and makes a payment to the invoice.
 
 ## Payment Proofs and Payer Proofs
 
@@ -65,7 +66,7 @@ invoice was paid (by showing the preimage of the `payment_hash`), not who paid
 it.  The merchant can claim an invoice was paid, and once revealed, anyone can
 claim they paid the invoice, too.[1]
 
-Providing a key in *invoice_request* allows a user to prove that they were the one
+Providing a key in *invoice_request* allows the payer to prove that they were the one
 to request the invoice.  In addition, the Merkle construction of the BOLT 12
 invoice signature allows the user to reveal invoice fields in case
 of a dispute selectively.
@@ -174,8 +175,8 @@ Signature = SIG("lightninginvoicesignature", Root, nodekey)
 
 # Offers
 
-Offers are a precursor to an invoice: readers will either request an invoice
-(or multiple) or send an invoice based on the offer.  An offer can be much longer-lived than a
+Offers are a precursor to an invoice_request: readers will request an invoice
+(or multiple) based on the offer.  An offer can be much longer-lived than a
 particular invoice, so it has some different characteristics; in particular the amount can be in a non-lightning currency.  It's
 also designed for compactness to fit inside a QR code easily.
 
@@ -225,7 +226,6 @@ The human-readable prefix for offers is `lno`.
     1. type: 24 (`offer_node_id`)
     2. data:
         * [`point`:`node_id`]
-    1. type: 26 (`offer_send_invoice`)
 
 1. subtype: `blinded_path`
 2. data:
@@ -313,19 +313,35 @@ validate the other fields.
 
 A signature is unnecessary, and makes for a longer string (potentially
 limiting QR code use on low-end cameras); if the offer has an error, no
-invoice will be given (or, for `send_invoice` offers, accepted) since
-the `offer_id` already covers all the non-signature fields.
+invoice will be given since the request includes all the non-signature 
+fields.
 
 # Invoice Requests
 
 Invoice Requests are a request for an invoice; the human-readable prefix for
-invoices is `lnr`.  It mirrors all the fields from the offer, except
-`offer_send_invoice` which cannot cause invoice_requests.
+invoice requests is `lnr`.
+
+There are two similar-looking uses for invoice requests, which are
+almost identical from a workflow perspective, but are quite different
+from a user's point of view.
+
+One is a response to an offer; this contains the `offer_node_id` and
+all other offer details, and is generally received over an onion
+message: if it's valid and refers to a known offer, the response is
+generally to reply with an `invoice` using the `reply_path` field of
+the onion message.
+
+The second case is publishing an `invoice_request` without an offer,
+such as via QR code.  The contains no `offer_node_id` (using the
+`invoice_request_payer_id` instead, as it in the one paying), and the
+other offer fields are filled by the creator of the `invoice_request`,
+forming a kind of offer-to-send-money.
 
 Note: the `invoice_request_metadata` is numbered 0 (not in the
 80-159 range for other invoice_request fields) as this is the first
 TLV element, which ensures payer-provided entropy is used in hashing
 for [Signature Calculation](#signature-calculation).
+
 
 ## TLV Fields for `invoice_request`
 
@@ -382,7 +398,7 @@ for [Signature Calculation](#signature-calculation).
     1. type: 86 (`invoice_request_quantity`)
     2. data:
         * [`tu64`:`quantity`]
-    1. type: 88 (`invoice_request_payer_key`)
+    1. type: 88 (`invoice_request_payer_id`)
     2. data:
         * [`point`:`key`]
     1. type: 89 (`invoice_request_payer_note`)
@@ -395,68 +411,91 @@ for [Signature Calculation](#signature-calculation).
 ## Requirements for Invoice Requests
 
 The writer:
-  - MUST copy all fields from the offer (including unknown fields).
+  - if it is responding to an offer:
+    - MUST copy all fields from the offer (including unknown fields).
+    - if `offer_chains` is set:
+      - MUST set `invoice_request_chain` to one of `offer_chains` unless that chain is bitcoin, in which case it MAY omit `invoice_request_chain`.
+    - otherwise:
+      - if it sets `invoice_request_chain` it MUST set it to bitcoin.
+    - MUST set `signature`.`sig` as detailed in [Signature Calculation](#signature-calculation) using the `invoice_request_payer_id`.
+    - if `offer_amount` is present:
+      - MUST specify `invoice_request_amount`.
+    - otherwise:
+      - MAY omit `invoice_request_amount`.
+      - if it sets `invoice_request_amount`:
+        - MUST specify `invoice_request_amount`.`msat` as greater or equal to amount expected by `offer_amount` (and, if present, `offer_currency`).
+    - MUST set `invoice_request_payer_id` to a transient public key.
+    - MUST remember the secret key corresponding to `invoice_request_payer_id`.
+  - otherwise (not responding to an offer):
+    - MUST set (or not set) `offer_metadata`, `offer_description`, `offer_absolute_expiry`, `offer_paths` and `offer_issuer` as it would for an offer.
+    - MUST NOT include `signature`, `offer_chains`, `offer_amount`, `offer_currency`, `offer_features`, `offer_quantity_min`, `offer_quantity_max` or `offer_node_id`
+    - if it sets `invoice_request_payer_id`:
+      - MUST set `key` to the node's public key to request the invoice from.
+    - otherwise:
+       - MUST provide at least one `offer_blinded_path`
+    - if the chain for the invoice is not solely bitcoin:
+      - MUST specify `invoice_request_chain` the offer is valid for.
+    - MUST set `invoice_request_amount`.
   - MUST NOT set any tlv fields greater or equal to 160.
   - MUST set `invoice_request_metadata` to an unpredictable series of bytes.
-  - MUST set `invoice_request_payer_key` to a transient public key.
-  - MUST remember the secret key corresponding to `invoice_request_payer_key`.
-  - if `offer_chains` is set:
-    - MUST set `invoice_request_chain` to one of `offer_chains` unless that chain is bitcoin, in which case it MAY omit `invoice_request_chain`.
-  - otherwise:
-    - if it sets `invoice_request_chain` it MUST set it to bitcoin.
-  - MUST set `signature`.`sig` as detailed in [Signature Calculation](#signature-calculation) using the `invoice_request_payer_key`.
   - if `offer_quantity_min` or `offer_quantity_max` are present:
     - MUST set `invoice_request_quantity`
     - MUST set it within that (inclusive) range.
   - otherwise:
     - MUST NOT set `invoice_request_quantity`
-  - if `offer_amount`:
-    - MUST specify `invoice_request_amount`.`msat` in multiples of the minimum lightning-payable unit
-      (e.g. milli-satoshis for bitcoin) for `chain` (or for bitcoin, if there is no `chain`).
-  - otherwise:
-    - MAY omit `invoice_request_amount`.
-    - if it sets `invoice_request_amount`:
-      - MUST specify `invoice_request_amount`.`msat` as greater or equal to amount expected by `offer_amount` (and, if present, `offer_currency`).
+  - if it sets `invoice_request_amount`:
+    - MUST set `msat` in multiples of the minimum lightning-payable unit
+        (e.g. milli-satoshis for bitcoin) for `invoice_request_chain` (or for bitcoin, if there is no `invoice_request_chain`).
   - if it supports bolt12 features:
     - MUST set `invoice_request_features`.`features` to the bitmap of features.
 
 The reader:
-  - MUST fail the request if `invoice_request_payer_key` is not present.
+  - MUST fail the request if `invoice_request_payer_id` is not present.
   - MUST fail the request if any fields have type greater or equal to 160.
   - if `invoice_request_features` contains unknown _odd_ bits that are non-zero:
     - MUST ignore the bit.
   - if `invoice_request_features` contains unknown _even_ bits that are non-zero:
     - MUST fail the request.
+  - if `offer_node_id` is present (response to an offer):
+    - MUST fail the request if the offer fields do not exactly match a valid, unexpired offer.
+    - MUST fail the request if `invoice_request_signature` is not correct as detailed in [Signature Calculation](#signature-calculation) using the `invoice_request_payer_id`.
+    - if `offer_quantity_min` or `offer_quantity_max` is present:
+      - MUST fail the request if there is no `invoice_request_quantity` field.
+      - MUST fail the request if `invoice_request_quantity` is not within that (inclusive) range.
+    - otherwise:
+      - MUST fail the request if there is an `invoice_request_quantity` field.
+    - if `offer_amount` is present:
+      - MUST calculate the *base invoice amount* using the `offer_amount`:
+        - if `offer_currency` is not the `invoice_request_chain` currency, convert to the
+          `invoice_request_chain` currency.
+        - if `invoice_request_quantity` is present, multiply by `invoice_request_quantity`.`quantity`.
+      - if `invoice_request_amount` is present:
+        - MUST fail the request if `invoice_request_amount`.`msat` is less than the *base invoice amount*.
+        - MAY fail the request if `invoice_request_amount`.`msat` exceeds the *base invoice amount*.
+        - MUST use `invoice_request_amount`.`msat` as the *base invoice amount*.
+    - otherwise (no `offer_amount`):
+      - MUST fail the request if it does not contain `invoice_request_amount`.
+    - SHOULD send an invoice in response using the `onionmsg_tlv` `reply_path`.
+  - otherwise (no `offer_node_id`, not a response to our offer):
+    - MUST fail the request if any of the following are present:
+      - `signature`, `offer_chains`, `offer_features`, `offer_quantity_min`, or `offer_quantity_max`.
+    - MUST fail the request if `invoice_request_amount` is not present.
+    - MUST use `invoice_request_amount`.`msat` as the *base invoice amount*.
+    - MAY use `offer_amount` (or `offer_currency`) for informational display to user.
+    - if it sends an invoice in response:
+      - MUST use `offer_paths` if present, otherwise MUST use `invoice_request_payer_id` as the node id to send to.
   - if `invoice_request_chain` is not present:
     - MUST fail the request if bitcoin is not a supported chain.
   - otherwise:
     - MUST fail the request if `invoice_request_chain`.`chain` is not a supported chain.
-  - MUST fail the request if `invoice_request_features` contains unknown even bits.
-  - MUST fail the request if `offer_send_invoice` is present.
-  - MUST fail the request if the offer fields do not exactly match a valid, unexpired offer.
-  - MUST fail the request if `invoice_request_signature` is not correct as detailed in [Signature Calculation](#signature-calculation) using the `invoice_request_payer_key`.
-  - if `offer_quantity_min` or `offer_quantity_max` is present:
-    - MUST fail the request if there is no `invoice_request_quantity` field.
-    - MUST fail the request if `invoice_request_quantity` is not within that (inclusive) range.
-  - otherwise:
-    - MUST fail the request if there is an `invoice_request_quantity` field.
-  - if `offer_amount` is present:
-    - MUST calculate the *base invoice amount* using the `offer_amount`:
-      - if `offer_currency` is not the `invoice_request_chain` currency, convert to the
-        `invoice_request_chain` currency.
-      - if `invoice_request_quantity` is present, multiply by `invoice_request_quantity`.`quantity`.
-    - if `invoice_request_amount` is present:
-      - MUST fail the request if `invoice_request_amount`.`msat` is less than the *base invoice amount*.
-      - MAY fail the request if `invoice_request_amount`.`msat` exceeds the *base invoice amount*.
-  - otherwise (no `offer_amount`):
-    - MUST fail the request if it does not contain `invoice_request_amount`.
+
 
 ## Rationale
 
 `invoice_request_metadata` might typically contain information about the derivation of the
-`invoice_request_payer_key`.  This should not leak any information (such as using a simple
+`invoice_request_payer_id`.  This should not leak any information (such as using a simple
 BIP-32 derivation path); a valid system might be for a node to maintain a base
-payer key and encode a 128-bit tweak here.  The payer_key would be derived by
+payer key and encode a 128-bit tweak here.  The payer_id would be derived by
 tweaking the base key with SHA256(payer_base_pubkey || tweak).  It's also
 the first entry (if present), ensuring an unpredictable nonce for hashing.
 
@@ -469,6 +508,12 @@ Users can give a tip (or obscure the amount sent) by specifying an
 the invoice request amount exceeds the amount it's expecting (i.e. its
 `offer_amount` after any currency conversion, multiplied by `invoice_request_quantity`, if
 any).
+
+Non-offer-response `invoice_requests` are currently required to
+explicitly state the `invoice_request_amount` in the chain currency,
+so `offer_amount` and `offer_currency` are redundant (but may be
+informative for the payer to know how the sender claims
+`invoice_request_amount` was derived).
 
 # Invoices
 
@@ -532,7 +577,7 @@ using the `onion_message` `invoice` field.
     1. type: 86 (`invoice_request_quantity`)
     2. data:
         * [`tu64`:`quantity`]
-    1. type: 88 (`invoice_request_payer_key`)
+    1. type: 88 (`invoice_request_payer_id`)
     2. data:
         * [`point`:`key`]
     1. type: 89 (`invoice_request_payer_note`)
@@ -562,6 +607,9 @@ using the `onion_message` `invoice` field.
     1. type: 174 (`invoice_features`)
     2. data:
         * [`...*byte`:`features`]
+    1. type: 176 (`invoice_code`)
+    2. data:
+        * [`...*utf8`:`code`]
     1. type: 240 (`signature`)
     2. data:
         * [`bip340sig`:`sig`]
@@ -585,16 +633,19 @@ using the `onion_message` `invoice` field.
 ## Requirements
 
 A writer of an invoice:
-  - if creating an `invoice` for an offer with `offer_send_invoice`:
-     - MUST copy all fields from the offer (including unknown fields).
-  - otherwise (responding to an `invoice_request`):
-     - MUST copy all non-signature fields from the invoice_request (including unknown fields).
+  - MUST copy all non-signature fields from the invoice_request (including unknown fields).
   - MUST set `invoice_created_at` to the number of seconds since Midnight 1
     January 1970, UTC when the offer was created.
   - MUST set `invoice_payment_hash` to the SHA256 hash of the
     `payment_preimage` that will be given in return for payment.
-  - MUST specify exactly one signature TLV element: `signature`.
-    - MUST set `sig` to the signature using `offer_node_id` as described in [Signature Calculation](#signature-calculation).
+  - if `offer_node_id` is not present:
+    - if the `invoice_request` was not communicated securely (i.e. privately):
+      - SHOULD set `invoice_code` to a short string for verification.
+	- MUST NOT set `signature`.
+  - otherwise:
+    - MUST NOT set `invoice_code`.
+    - MUST specify exactly one signature TLV element: `signature`.
+      - MUST set `sig` to the signature using `offer_node_id` as described in [Signature Calculation](#signature-calculation).
   - if it supports bolt12 features:
     - MUST set `invoice_features`.`features` to the bitmap of features.
   - if the expiry for accepting payment is not 7200 seconds after `invoice_created_at`:
@@ -612,30 +663,21 @@ A writer of an invoice:
     - MUST include `invoice_blindedpay` with exactly one `blinded_payinfo` for each `blinded_path` in `paths`, in order.
     - MUST set `features` in each `blinded_payinfo` to match `encrypted_data_tlv`.`allowed_features` (or empty, if no `allowed_features`).
     - SHOULD ignore any payment which does not use one of the paths.
-  - if responding to an `invoice_request`:
-    - if `invoice_request_payer_key` and offer are identical to a previous `invoice_request`:
-      - MAY simply reuse the previous invoice.
-    - otherwise:
-      - MUST NOT reuse a previous invoice.
-    - if `invoice_request_amount` is present:
-      - MUST set `invoice_amount` to `invoice_request_amount`
-    - otherwise: (no `invoice_request_amount`, so must have `offer_amount`):
-      - MUST set `invoice_amount`.`msat` to the *base invoice amount*.
-  - otherwise (responding to a `offer_send_invoice` offer):
-    - MUST fail the request if `offer_send_invoice` is not present.
-    - MUST fail the request if the offer fields not do exactly match a valid, unexpired offer.
-    - if `offer_quantity_min` or `offer_quantity_max` are present:
-      - MUST set `invoice_request_quantity`
-      - MUST set it within that (inclusive) range.
-    - otherwise:
-      - MUST NOT set `invoice_request_quantity`
-    - MUST set `invoice_request_payer_key` to `offer_node_id`.
-    - MUST set `invoice_request_metadata`
-	  - SHOULD set it to at least 16 random bytes.
+  - if `offer_node_id` is present, and `invoice_request_payer_id` is identical to a previous `invoice_request`:
+    - MAY simply reuse the previous invoice.
+  - otherwise:
+    - MUST NOT reuse a previous invoice.
 
 A reader of an invoice:
-  - MUST reject the invoice if `signature` is not a valid signature using `offer_node_id` as described in [Signature Calculation](#signature-calculation).
   - MUST reject the invoice if `invoice_amount` is not present.
+  - MUST reject the invoice if `invoice_request_payer_id` is not present.
+  - if `offer_node_id` is present:
+    - MUST reject the invoice if `invoice_code` is present.
+    - MUST reject the invoice if `signature` is not a valid signature using `offer_node_id` as described in [Signature Calculation](#signature-calculation).
+  - otherwise:
+    - MUST reject the invoice if `signature` is present.
+	- if `invoice_code` is present:
+      - SHOULD reject the invoice if it cannot confirm that `invoice_code` is correct, out-of-band .
   - MUST reject the invoice if `offer_description` is not present.
   - MUST reject the invoice if `invoice_created_at` is not present.
   - MUST reject the invoice if `invoice_payment_hash` is not present.
@@ -652,21 +694,9 @@ A reader of an invoice:
   - MUST reject the invoice if `invoice_blindedpay` does not contain exactly one `blinded_payinfo` per `invoice_paths`.`blinded_path`.
   - MUST reject the invoice if `features` in any `blinded_payinfo` has any unknown even bits set.
   - SHOULD confirm authorization if `invoice_amount`.`msat` is not within the amount range authorized.
-  - if the invoice is a reply to an `invoice_request`:
-     - MUST reject the invoice if all fields less than type 160 do not exactly match the `invoice_request`
-  - otherwise, if responding to an `offer_send_invoice` offer:
-    - MUST fail the request if `offer_send_invoice` is not present.
-    - MUST fail the request if the offer fields not do exactly match a valid, unexpired offer.
-    - if `invoice_request_chain` is not present:
-       - MUST reject the invoice if bitcoin is not a supported chain for the offer.
-    - otherwise:
-      - MUST reject the invoice if `invoice_request_chain` is not a supported chain for the offer.
-    - if `offer_quantity_min` or `offer_quantity_max` is present:
-      - MUST reject the invoice if there is no `invoice_request_quantity` field.
-      - MUST reject the invoice if `invoice_request_quantity` is not within that (inclusive) range.
-    - otherwise:
-      - MUST reject the invoice if there is an `invoice_request_quantity` field.
-  - otherwise: (not an `invoice_request` reply, nor for `offer_send_invoice`):
+  - if the invoice is a response to an `invoice_request`:
+    - MUST reject the invoice if all fields less than type 160 do not exactly match the `invoice_request`, except `invoice_request_amount`
+  - otherwise: (a invoice presented without being requested, eg. scanned by user):
     - if `invoice_request_chain` is not present:
        - MUST reject the invoice if bitcoin is not a supported chain.
     - otherwise:
@@ -680,19 +710,20 @@ A reader of an invoice:
 
 Because the messaging layer is unreliable, it's quite possible to
 receive multiple requests for the same offer.  As it's the caller's
-responsibility not to reuse `invoice_request_payer_key`
+responsibility not to reuse `invoice_request_payer_id`
 the writer doesn't have to check all the fields are duplicates before
 simply returning a previous invoice.  Note that such caching is optional,
 and should be carefully limited when e.g. currency conversion is involved,
 or if the invoice has expired.
 
-The invoice duplicates fields rather than committing to the previous offer or
+The invoice duplicates fields rather than committing to the previous
 invoice_request.  This flattened format simplifies storage at some space cost, as
 the payer need only remember the invoice for any refunds or proof.
 
-The reader of the invoice cannot trust the invoice correctly reflects the
-offer and invoice_request fields, hence the requirements to check that they
-are correct.
+The reader of the invoice cannot trust the invoice correctly reflects
+the invoice_request fields, hence the requirements to check that they
+are correct, although allowance is made for simply sending an unrequested
+invoice directly.
 
 Note that the recipient of the invoice can determine the expected
 amount from either the offer it received, or the invoice_request it
@@ -702,11 +733,19 @@ The default `invoice_relative_expiry` of 7200 seconds, which is generally a
 sufficient time for payment, even if new channels need to be opened.
 
 Blinded paths provide an equivalent to `payment_secret` and `payment_metadata` used in BOLT 11.
-Even if `offer_node_id` is public, we force the use of blinding paths to keep these features.
+Even if `offer_node_id` or `invoice_request_payer_id` is public, we force the use of blinding paths to keep these features.
 If the recipient does not care about the added privacy offered by blinded paths, they can create a path of length 1 with only themselves.
 
 Rather than provide detailed per-hop-payinfo for each hop in a blinded path, we aggregate the fees and CLTV deltas.
 This avoids trivially revealing any distinguishing non-uniformity which may distinguish the path.
+
+In the case of an invoice where there was no offer (just an invoice
+request), the payer needs to ensure that the invoice is from the
+intended payment recipient.  This is difficult if the invoice request
+was displayed as a QR code on an ATM: the use of an invoice_code in
+the invoice allows such a payer to display and confirm before payment.
+A 6 digit code provides a 1-in-a-billion chance of paying the wrong
+invoice (and the other cases are detectable).
 
 # Invoice Errors
 
@@ -746,12 +785,15 @@ A reader of an invoice_error:
 
 ## Rationale
 
-Usually an error message is sufficient for diagnostics, however there
-is at least one case where it should be programmatically parsable.  An
-offer which sets `offer_send_invoice` can also specify a currency,
-which opens the possibility for a disagreement on exchange rate.  In
-this case, the `suggested_value` reflects its expected value, and the
-sender can send a new invoice.
+Usually an error message is sufficient for diagnostics, however future
+enhancements may make automated handling useful.
+
+In particular, we could allow non-offer-response `invoice_requests` to
+omit `invoice_request_amount` in future and use offer fields to
+indicate alternate currencies.  ("I will send you 10c!").  Then the
+sender of the invoice would have to guess how many msat that was,
+and could use the `invoice_error` to indicate if the recipient disagreed
+with the conversion so the sender can send a new invoice.
 
 # FIXME: Possible future extensions:
 
@@ -765,8 +807,9 @@ sender can send a new invoice.
 7. All-zero offer_id == gratuitous payment.
 8. Streaming invoices?
 9. Re-add recurrence.
-10. Re-add `offer_refund_for` for `offer_send_invoice` to support proofs.
+10. Re-add `invoice_request_refund_for` to support proofs.
 11. Re-add `invoice_replace` for requesting replacement of a (stuck-payment) 
     invoice with a new one.
+12. Allow non-offer `invoice_request` with alternate currencies?
 
 [1] https://www.youtube.com/watch?v=4SYc_flMnMQ
