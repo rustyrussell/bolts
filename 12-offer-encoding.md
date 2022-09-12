@@ -55,8 +55,8 @@ The merchant-pays-user flow (e.g. ATM or refund):
 1. The merchant publishes an *invoice_request* which contains offer fields
    which refer to its attempt to send money, including an amount.
 2. The user sends an *invoice* over the lightning network for the amount in the
-   *invoice_request*, using a temporary *invoice key*.
-3. The merchant confirms the *invoice key* to ensure it's about to pay the correct
+   *invoice_request*, using a temporary *invoice code*.
+3. The merchant confirms the *invoice code* to ensure it's about to pay the correct
    person, and makes a payment to the invoice.
 
 ## Payment Proofs and Payer Proofs
@@ -426,6 +426,11 @@ The writer:
         - MUST specify `invoice_request_amount`.`msat` as greater or equal to amount expected by `offer_amount` (and, if present, `offer_currency`).
     - MUST set `invoice_request_payer_id` to a transient public key.
     - MUST remember the secret key corresponding to `invoice_request_payer_id`.
+    - if `offer_quantity_min` or `offer_quantity_max` are present:
+      - MUST set `invoice_request_quantity`
+      - MUST set it within that (inclusive) range.
+    - otherwise:
+      - MUST NOT set `invoice_request_quantity`
   - otherwise (not responding to an offer):
     - MUST set (or not set) `offer_metadata`, `offer_description`, `offer_absolute_expiry`, `offer_paths` and `offer_issuer` as it would for an offer.
     - MUST NOT include `signature`, `offer_chains`, `offer_amount`, `offer_currency`, `offer_features`, `offer_quantity_min`, `offer_quantity_max` or `offer_node_id`
@@ -438,11 +443,6 @@ The writer:
     - MUST set `invoice_request_amount`.
   - MUST NOT set any tlv fields greater or equal to 160.
   - MUST set `invoice_request_metadata` to an unpredictable series of bytes.
-  - if `offer_quantity_min` or `offer_quantity_max` are present:
-    - MUST set `invoice_request_quantity`
-    - MUST set it within that (inclusive) range.
-  - otherwise:
-    - MUST NOT set `invoice_request_quantity`
   - if it sets `invoice_request_amount`:
     - MUST set `msat` in multiples of the minimum lightning-payable unit
         (e.g. milli-satoshis for bitcoin) for `invoice_request_chain` (or for bitcoin, if there is no `invoice_request_chain`).
@@ -521,8 +521,7 @@ Invoices are a payment request, and when the payment is made,
 it can be combined with the invoice to form a cryptographic receipt.
 
 The human-readable prefix for invoices is `lni`.  The recipient can send it in
-response to an `invoice_request` or an `offer` with `offer_send_invoice`
-using the `onion_message` `invoice` field.
+response to an `invoice_request` using the `onion_message` `invoice` field.
 
 1. `tlv_stream`: `invoice`
 2. types:
