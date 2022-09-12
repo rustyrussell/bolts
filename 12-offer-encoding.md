@@ -332,7 +332,7 @@ generally to reply with an `invoice` using the `reply_path` field of
 the onion message.
 
 The second case is publishing an `invoice_request` without an offer,
-such as via QR code.  The contains no `offer_node_id` (using the
+such as via QR code.  It contains no `offer_node_id` (using the
 `invoice_request_payer_id` instead, as it in the one paying), and the
 other offer fields are filled by the creator of the `invoice_request`,
 forming a kind of offer-to-send-money.
@@ -418,7 +418,7 @@ The writer:
     - otherwise:
       - if it sets `invoice_request_chain` it MUST set it to bitcoin.
     - MUST set `signature`.`sig` as detailed in [Signature Calculation](#signature-calculation) using the `invoice_request_payer_id`.
-    - if `offer_amount` is present:
+    - if `offer_amount` is not present:
       - MUST specify `invoice_request_amount`.
     - otherwise:
       - MAY omit `invoice_request_amount`.
@@ -640,7 +640,7 @@ A writer of an invoice:
   - if `offer_node_id` is not present:
     - if the `invoice_request` was not communicated securely (i.e. privately):
       - SHOULD set `invoice_code` to a short string for verification.
-	- MUST NOT set `signature`.
+    - MUST NOT set `signature`.
   - otherwise:
     - MUST NOT set `invoice_code`.
     - MUST specify exactly one signature TLV element: `signature`.
@@ -675,7 +675,7 @@ A reader of an invoice:
     - MUST reject the invoice if `signature` is not a valid signature using `offer_node_id` as described in [Signature Calculation](#signature-calculation).
   - otherwise:
     - MUST reject the invoice if `signature` is present.
-	- if `invoice_code` is present:
+    - if `invoice_code` is present:
       - SHOULD reject the invoice if it cannot confirm that `invoice_code` is correct, out-of-band .
   - MUST reject the invoice if `offer_description` is not present.
   - MUST reject the invoice if `invoice_created_at` is not present.
