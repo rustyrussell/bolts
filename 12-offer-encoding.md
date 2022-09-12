@@ -179,6 +179,10 @@ Offers are a precursor to an invoice: readers will either request an invoice
 particular invoice, so it has some different characteristics; in particular the amount can be in a non-lightning currency.  It's
 also designed for compactness to fit inside a QR code easily.
 
+Note that the non-signature TLV elements get mirrored into
+invoice_request and invoice messages, so they each have specific and
+distinct TLV ranges.
+
 The human-readable prefix for offers is `lno`.
 
 ## TLV Fields for Offers
@@ -318,7 +322,7 @@ Invoice Requests are a request for an invoice; the human-readable prefix for
 invoices is `lnr`.  It mirrors all the fields from the offer, except
 `offer_send_invoice` which cannot cause invoice_requests.
 
-Note: the `invoice_request_payer_info` is numbered 0 (not in the
+Note: the `invoice_request_metadata` is numbered 0 (not in the
 80-159 range for other invoice_request fields) as this is the first
 TLV element, which ensures payer-provided entropy is used in hashing
 for [Signature Calculation](#signature-calculation).
@@ -327,7 +331,7 @@ for [Signature Calculation](#signature-calculation).
 
 1. `tlv_stream`: `invoice_request`
 2. types:
-    1. type: 0 (`invoice_request_payer_info`)
+    1. type: 0 (`invoice_request_metadata`)
     2. data:
         * [`...*byte`:`blob`]
     1. type: 2 (`offer_chains`)
@@ -393,10 +397,13 @@ for [Signature Calculation](#signature-calculation).
 The writer:
   - MUST copy all fields from the offer (including unknown fields).
   - MUST NOT set any tlv fields greater or equal to 160.
-  - SHOULD set `invoice_request_payer_info` to an unpredictable series of bytes.
+  - MUST set `invoice_request_metadata` to an unpredictable series of bytes.
   - MUST set `invoice_request_payer_key` to a transient public key.
   - MUST remember the secret key corresponding to `invoice_request_payer_key`.
-  - MUST NOT set or imply any `invoice_request_chain` not set or implied by `offer_chains`.
+  - if `offer_chains` is set:
+    - MUST set `invoice_request_chain` to one of `offer_chains` unless that chain is bitcoin, in which case it MAY omit `invoice_request_chain`.
+  - otherwise:
+    - if it sets `invoice_request_chain` it MUST set it to bitcoin.
   - MUST set `signature`.`sig` as detailed in [Signature Calculation](#signature-calculation) using the `invoice_request_payer_key`.
   - if `offer_quantity_min` or `offer_quantity_max` are present:
     - MUST set `invoice_request_quantity`
@@ -446,7 +453,7 @@ The reader:
 
 ## Rationale
 
-`invoice_request_payer_info` might typically contain information about the derivation of the
+`invoice_request_metadata` might typically contain information about the derivation of the
 `invoice_request_payer_key`.  This should not leak any information (such as using a simple
 BIP-32 derivation path); a valid system might be for a node to maintain a base
 payer key and encode a 128-bit tweak here.  The payer_key would be derived by
@@ -474,7 +481,7 @@ using the `onion_message` `invoice` field.
 
 1. `tlv_stream`: `invoice`
 2. types:
-    1. type: 0 (`invoice_request_payer_info`)
+    1. type: 0 (`invoice_request_metadata`)
     2. data:
         * [`...*byte`:`blob`]
     1. type: 2 (`offer_chains`)
@@ -540,21 +547,21 @@ using the `onion_message` `invoice` field.
     1. type: 164 (`invoice_created_at`)
     2. data:
         * [`tu64`:`timestamp`]
+    1. type: 166 (`invoice_relative_expiry`)
+    2. data:
+        * [`tu32`:`seconds_from_creation`]
     1. type: 168 (`invoice_payment_hash`)
     2. data:
         * [`sha256`:`payment_hash`]
-    1. type: 170 (`invoice_relative_expiry`)
+    1. type: 170 (`invoice_amount`)
     2. data:
-        * [`tu32`:`seconds_from_creation`]
+        * [`tu64`:`msat`]
     1. type: 172 (`invoice_fallbacks`)
     2. data:
         * [`...*fallback_address`:`fallbacks`]
     1. type: 174 (`invoice_features`)
     2. data:
         * [`...*byte`:`features`]
-    1. type: 176 (`invoice_amount`)
-    2. data:
-        * [`tu64`:`msat`]
     1. type: 240 (`signature`)
     2. data:
         * [`bip340sig`:`sig`]
@@ -623,7 +630,7 @@ A writer of an invoice:
     - otherwise:
       - MUST NOT set `invoice_request_quantity`
     - MUST set `invoice_request_payer_key` to `offer_node_id`.
-    - MUST set `invoice_request_payer_info`
+    - MUST set `invoice_request_metadata`
 	  - SHOULD set it to at least 16 random bytes.
 
 A reader of an invoice:
