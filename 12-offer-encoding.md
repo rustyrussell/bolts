@@ -226,6 +226,7 @@ The human-readable prefix for offers is `lno`.
     2. data:
         * [`point`:`node_id`]
     1. type: 26 (`offer_send_invoice`)
+    1. type: 28 (`is_trusted`)
 
 1. subtype: `blinded_path`
 2. data:
@@ -301,6 +302,8 @@ A reader of an offer:
         from that expectation.
   - SHOULD not respond to an offer if the current time is after
     `offer_absolute_expiry`.
+  - if `is_trusted` is set:
+    - MUST not respond to the offer unless the reader trusts the offer issuer and does not need proof of payment.
   - FIXME: more!
 
 ## Rationale
@@ -370,6 +373,7 @@ for [Signature Calculation](#signature-calculation).
     1. type: 24 (`offer_node_id`)
     2. data:
         * [`point`:`node_id`]
+    1. type: 28 (`is_trusted`)
     1. type: 80 (`invoice_request_chain`)
     2. data:
         * [`chain_hash`:`chain`]
@@ -395,7 +399,13 @@ for [Signature Calculation](#signature-calculation).
 ## Requirements for Invoice Requests
 
 The writer:
-  - MUST copy all fields from the offer (including unknown fields).
+  - if responding to an offer:
+    - MUST copy all fields from the offer (including unknown fields).
+  - otherwise:
+    - MUST set `offer_node_id` to the (possibly blinded) public key of the node to request the invoice from.
+    - MUST set `description` to a complete description of the purpose of the payment.
+    - MUST set `is_trusted`.
+    - MUST NOT expect to receive anything in exchange of paying the invoice.
   - MUST NOT set any tlv fields greater or equal to 160.
   - MUST set `invoice_request_metadata` to an unpredictable series of bytes.
   - MUST set `invoice_request_payer_key` to a transient public key.
@@ -433,7 +443,10 @@ The reader:
     - MUST fail the request if `invoice_request_chain`.`chain` is not a supported chain.
   - MUST fail the request if `invoice_request_features` contains unknown even bits.
   - MUST fail the request if `offer_send_invoice` is present.
-  - MUST fail the request if the offer fields do not exactly match a valid, unexpired offer.
+  - if `is_trusted` is set:
+    - MAY respond with an invoice with the understanding that the requester does not expect anything in exchange of paying the invoice.
+  - otherwise:
+    - MUST fail the request if the offer fields do not exactly match a valid, unexpired offer.
   - MUST fail the request if `invoice_request_signature` is not correct as detailed in [Signature Calculation](#signature-calculation) using the `invoice_request_payer_key`.
   - if `offer_quantity_min` or `offer_quantity_max` is present:
     - MUST fail the request if there is no `invoice_request_quantity` field.
@@ -469,6 +482,9 @@ Users can give a tip (or obscure the amount sent) by specifying an
 the invoice request amount exceeds the amount it's expecting (i.e. its
 `offer_amount` after any currency conversion, multiplied by `invoice_request_quantity`, if
 any).
+
+Users should be able to send tips or pay friends without needing a preexisting offer.
+In that case the payer can't expect a proof that they are entitled to receive something and they signal this by setting `is_trusted`.
 
 # Invoices
 
@@ -520,6 +536,7 @@ using the `onion_message` `invoice` field.
     2. data:
         * [`point`:`node_id`]
     1. type: 26 (`offer_send_invoice`)
+    1. type: 28 (`is_trusted`)
     1. type: 80 (`invoice_request_chain`)
     2. data:
         * [`chain_hash`:`chain`]
