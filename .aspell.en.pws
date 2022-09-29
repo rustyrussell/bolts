@@ -387,6 +387,7 @@ CHECKSIGVERIFY
 IFDUP
 sats
 anysegwit
+onionmsg
 griefing
 unspendable
 pkh
