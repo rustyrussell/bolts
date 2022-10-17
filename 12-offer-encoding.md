@@ -217,13 +217,10 @@ The human-readable prefix for offers is `lno`.
     1. type: 18 (`offer_issuer`)
     2. data:
         * [`...*utf8`:`issuer`]
-    1. type: 20 (`offer_quantity_min`)
-    2. data:
-        * [`tu64`:`min`]
-    1. type: 22 (`offer_quantity_max`)
+    1. type: 20 (`offer_quantity_max`)
     2. data:
         * [`tu64`:`max`]
-    1. type: 24 (`offer_node_id`)
+    1. type: 22 (`offer_node_id`)
     2. data:
         * [`point`:`node_id`]
 
@@ -267,18 +264,15 @@ A writer of an offer:
       - SHOULD begin it with either user@domain or domain
       - MAY follow with a space and more text
   - if it can supply more than one item for a single invoice
-    - if the minimum quantity is more than 1:
-      - MUST set that minimum in `offer_quantity_min`
     - if the maximum quantity is known:
       - MUST set that maximum in `offer_quantity_max`
-    - if neither:
-      - MUST set `offer_quantity_min` to 1 to indicate `quantity` is supported.
-    - if both:
-      - MUST set `offer_quantity_min` less than or equal to `offer_quantity_max`.
-    - MUST NOT set `offer_quantity_min` or `offer_quantity_max` less than 1.
+    - otherwise:
+      - MUST set `offer_quantity_max` to 0.
+  - otherwise:
+    - MUST NOT set `offer_quantity_max`.
 
 A reader of an offer:
-  - if the offer contains any unknown TLV fields greater or equal to 80:
+  - if the offer contains any TLV fields greater or equal to 80:
     - MUST NOT respond to the offer.
   - if `offer_features` contains unknown _odd_ bits that are non-zero:
     - MUST ignore the bit.
@@ -370,13 +364,10 @@ for [Signature Calculation](#signature-calculation).
     1. type: 18 (`offer_issuer`)
     2. data:
         * [`...*utf8`:`issuer`]
-    1. type: 20 (`offer_quantity_min`)
-    2. data:
-        * [`tu64`:`min`]
-    1. type: 22 (`offer_quantity_max`)
+    1. type: 20 (`offer_quantity_max`)
     2. data:
         * [`tu64`:`max`]
-    1. type: 24 (`offer_node_id`)
+    1. type: 22 (`offer_node_id`)
     2. data:
         * [`point`:`node_id`]
     1. type: 80 (`invreq_chain`)
@@ -419,15 +410,16 @@ The writer:
         - MUST specify `invreq_amount`.`msat` as greater or equal to amount expected by `offer_amount` (and, if present, `offer_currency` and `invreq_quantity`).
     - MUST set `invreq_payer_id` to a transient public key.
     - MUST remember the secret key corresponding to `invreq_payer_id`.
-    - if `offer_quantity_min` or `offer_quantity_max` are present:
+    - if `offer_quantity_max` is present:
       - MUST set `invreq_quantity`
-      - MUST set it within that (inclusive) range.
+      - if `offer_quantity_max` is non-zero:
+        - MUST set `invreq_quantity` less than or equal to `offer_quantity_max`.
     - otherwise:
       - MUST NOT set `invreq_quantity`
   - otherwise (not responding to an offer):
     - MUST set (or not set) `offer_metadata`, `offer_description`, `offer_absolute_expiry`, `offer_paths` and `offer_issuer` as it would for an offer.
     - MUST set `invreq_payer_id` as it would set `offer_node_id` for an offer.
-    - MUST NOT include `signature`, `offer_chains`, `offer_amount`, `offer_currency`, `offer_features`, `offer_quantity_min`, `offer_quantity_max` or `offer_node_id`
+    - MUST NOT include `signature`, `offer_chains`, `offer_amount`, `offer_currency`, `offer_features`, `offer_quantity_max` or `offer_node_id`
     - if the chain for the invoice is not solely bitcoin:
       - MUST specify `invreq_chain` the offer is valid for.
     - MUST set `invreq_amount`.
@@ -441,7 +433,7 @@ The writer:
 
 The reader:
   - MUST fail the request if `invreq_payer_id` is not present.
-  - MUST fail the request if any fields have type greater or equal to 160.
+  - MUST fail the request if any TLV fields greater or equal to 160.
   - if `invreq_features` contains unknown _odd_ bits that are non-zero:
     - MUST ignore the bit.
   - if `invreq_features` contains unknown _even_ bits that are non-zero:
@@ -449,9 +441,10 @@ The reader:
   - if `offer_node_id` is present (response to an offer):
     - MUST fail the request if the offer fields do not exactly match a valid, unexpired offer.
     - MUST fail the request if `invreq_signature` is not correct as detailed in [Signature Calculation](#signature-calculation) using the `invreq_payer_id`.
-    - if `offer_quantity_min` or `offer_quantity_max` is present:
+    - if `offer_quantity_max` is present:
       - MUST fail the request if there is no `invreq_quantity` field.
-      - MUST fail the request if `invreq_quantity` is not within that (inclusive) range.
+      - if `offer_quantity_max` is non-zero:
+        - MUST fail the request if `invreq_quantity` is greater than `offer_quantity_max`.
     - otherwise:
       - MUST fail the request if there is an `invreq_quantity` field.
     - if `offer_amount` is present:
@@ -468,7 +461,7 @@ The reader:
     - SHOULD send an invoice in response using the `onionmsg_tlv` `reply_path`.
   - otherwise (no `offer_node_id`, not a response to our offer):
     - MUST fail the request if any of the following are present:
-      - `signature`, `offer_chains`, `offer_features`, `offer_quantity_min`, or `offer_quantity_max`.
+      - `signature`, `offer_chains`, `offer_features` or `offer_quantity_max`.
     - MUST fail the request if `invreq_amount` is not present.
     - MUST use `invreq_amount`.`msat` as the *base invoice amount*.
     - MAY use `offer_amount` (or `offer_currency`) for informational display to user.
@@ -545,13 +538,10 @@ response to an `invoice_request` using the `onion_message` `invoice` field.
     1. type: 18 (`offer_issuer`)
     2. data:
         * [`...*utf8`:`issuer`]
-    1. type: 20 (`offer_quantity_min`)
-    2. data:
-        * [`tu64`:`min`]
-    1. type: 22 (`offer_quantity_max`)
+    1. type: 20 (`offer_quantity_max`)
     2. data:
         * [`tu64`:`max`]
-    1. type: 24 (`offer_node_id`)
+    1. type: 22 (`offer_node_id`)
     2. data:
         * [`point`:`node_id`]
     1. type: 80 (`invreq_chain`)
@@ -626,8 +616,8 @@ response to an `invoice_request` using the `onion_message` `invoice` field.
 | 16   | Multi-part-payment support       | MPP/compulsory |
 | 17   | Multi-part-payment support       | MPP/optional   |
 
-The 'MPP support' invoice feature indicates that the payer MUST (0) or
-MAY (1) use multiple part payments to pay the invoice.
+The 'MPP support' invoice feature indicates that the payer MUST (16) or
+MAY (17) use multiple part payments to pay the invoice.
 
 Some implementations may not support MPP (e.g. for small payments), or
 may (due to capacity limits on a single channel) require it.
@@ -821,5 +811,7 @@ with the conversion so the sender can send a new invoice.
 11. Re-add `invoice_replace` for requesting replacement of a (stuck-payment) 
     invoice with a new one.
 12. Allow non-offer `invoice_request` with alternate currencies?
+13. Add `offer_quantity_unit` to indicate stepping for quantity
+    (e.g. 100 grams).
 
 [1] https://www.youtube.com/watch?v=4SYc_flMnMQ
