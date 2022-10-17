@@ -255,7 +255,7 @@ A writer of an offer:
       - MUST specify `offer_amount` in the currency unit adjusted by the ISO 4712
         exponent (e.g. USD cents).
   - MAY set `offer_metadata` for its own use.
-  - if it supports bolt12 features:
+  - if it supports bolt12 offer features:
     - MUST set `offer_features`.`features` to the bitmap of bolt12 features.
   - if the offer expires:
     - MUST set `offer_absolute_expiry` `seconds_from_epoch` to the number of seconds
@@ -446,7 +446,7 @@ The writer:
   - if it sets `invoice_request_amount`:
     - MUST set `msat` in multiples of the minimum lightning-payable unit
         (e.g. milli-satoshis for bitcoin) for `invoice_request_chain` (or for bitcoin, if there is no `invoice_request_chain`).
-  - if it supports bolt12 features:
+  - if it supports bolt12 invoice request features:
     - MUST set `invoice_request_features`.`features` to the bitmap of features.
 
 The reader:
@@ -629,6 +629,19 @@ response to an `invoice_request` using the `onion_message` `invoice` field.
    * [`u16`:`len`]
    * [`len*byte`:`address`]
 
+## Invoice Features
+
+| Bits | Description                      | Name           |
+|------|----------------------------------|----------------|
+| 0    | Multi-part-payment support       | MPP/compulsory |
+| 1    | Multi-part-payment support       | MPP/optional   |
+
+The 'MPP support' invoice feature indicates that the payer MUST (0) or
+MAY (1) use multiple part payments to pay the invoice.
+
+Some implementations may not support MPP (e.g. for small payments), or
+may (due to capacity limits on a single channel) require it.
+
 ## Requirements
 
 A writer of an invoice:
@@ -645,8 +658,10 @@ A writer of an invoice:
     - MUST NOT set `invoice_code`.
     - MUST specify exactly one signature TLV element: `signature`.
       - MUST set `sig` to the signature using `offer_node_id` as described in [Signature Calculation](#signature-calculation).
-  - if it supports bolt12 features:
-    - MUST set `invoice_features`.`features` to the bitmap of features.
+  - if it requires multiple parts to pay the invoice:
+    - MUST set `invoice_features`.`features` bit `MPP/compulsory`
+  - or if it allows multiple parts to pay the invoice:
+    - MUST set `invoice_features`.`features` bit `MPP/optional`
   - if the expiry for accepting payment is not 7200 seconds after `invoice_created_at`:
     - MUST set `invoice_relative_expiry`.`seconds_from_creation` to the number of
       seconds after `invoice_created_at` that payment of this invoice should not be attempted.
@@ -684,6 +699,12 @@ A reader of an invoice:
     - MUST ignore the bit.
   - if `invoice_features` contains unknown _even_ bits that are non-zero:
     - MUST reject the invoice.
+  - if `invoice_features` contains the MPP/compulsory bit:
+    - SHOULD pay the invoice via multiple separate blinded paths.
+  - otherwise, if `invoice_features` contains the MPP/optional bit:
+    - MAY pay the invoice via multiple separate payments.
+  - otherwise:
+    - MUST NOT use multiple payments to pay the invoice.
   - if `invoice_relative_expiry` is present:
     - MUST reject the invoice if the current time since 1970-01-01 UTC is greater than `invoice_created_at` plus `seconds_from_creation`.
   - otherwise:
