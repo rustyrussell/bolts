@@ -227,13 +227,6 @@ The human-readable prefix for offers is `lno`.
     2. data:
         * [`point`:`node_id`]
 
-1. subtype: `blinded_path`
-2. data:
-   * [`point`:`first_node_id`]
-   * [`point`:`blinding`]
-   * [`byte`:`num_hops`]
-   * [`num_hops*onionmsg_path`:`path`]
-
 ## Requirements For Offers
 
 A writer of an offer:
@@ -423,7 +416,7 @@ The writer:
     - otherwise:
       - MAY omit `invoice_request_amount`.
       - if it sets `invoice_request_amount`:
-        - MUST specify `invoice_request_amount`.`msat` as greater or equal to amount expected by `offer_amount` (and, if present, `offer_currency`).
+        - MUST specify `invoice_request_amount`.`msat` as greater or equal to amount expected by `offer_amount` (and, if present, `offer_currency` and `invoice_request_quantity`).
     - MUST set `invoice_request_payer_id` to a transient public key.
     - MUST remember the secret key corresponding to `invoice_request_payer_id`.
     - if `offer_quantity_min` or `offer_quantity_max` are present:
@@ -433,11 +426,8 @@ The writer:
       - MUST NOT set `invoice_request_quantity`
   - otherwise (not responding to an offer):
     - MUST set (or not set) `offer_metadata`, `offer_description`, `offer_absolute_expiry`, `offer_paths` and `offer_issuer` as it would for an offer.
+    - MUST set `invoice_request_payer_id` as it would set `offer_node_id` for an offer.
     - MUST NOT include `signature`, `offer_chains`, `offer_amount`, `offer_currency`, `offer_features`, `offer_quantity_min`, `offer_quantity_max` or `offer_node_id`
-    - if it sets `invoice_request_payer_id`:
-      - MUST set `key` to the node's public key to request the invoice from.
-    - otherwise:
-       - MUST provide at least one `offer_blinded_path`
     - if the chain for the invoice is not solely bitcoin:
       - MUST specify `invoice_request_chain` the offer is valid for.
     - MUST set `invoice_request_amount`.
@@ -556,6 +546,7 @@ response to an `invoice_request` using the `onion_message` `invoice` field.
     2. data:
         * [`...*utf8`:`issuer`]
     1. type: 20 (`offer_quantity_min`)
+    2. data:
         * [`tu64`:`min`]
     1. type: 22 (`offer_quantity_max`)
     2. data:
@@ -563,7 +554,6 @@ response to an `invoice_request` using the `onion_message` `invoice` field.
     1. type: 24 (`offer_node_id`)
     2. data:
         * [`point`:`node_id`]
-    1. type: 26 (`offer_send_invoice`)
     1. type: 80 (`invoice_request_chain`)
     2. data:
         * [`chain_hash`:`chain`]
@@ -633,8 +623,8 @@ response to an `invoice_request` using the `onion_message` `invoice` field.
 
 | Bits | Description                      | Name           |
 |------|----------------------------------|----------------|
-| 0    | Multi-part-payment support       | MPP/compulsory |
-| 1    | Multi-part-payment support       | MPP/optional   |
+| 16   | Multi-part-payment support       | MPP/compulsory |
+| 17   | Multi-part-payment support       | MPP/optional   |
 
 The 'MPP support' invoice feature indicates that the payer MUST (0) or
 MAY (1) use multiple part payments to pay the invoice.
