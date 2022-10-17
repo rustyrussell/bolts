@@ -51,7 +51,6 @@ A node:
     * [Payload Format](#payload-format)
     * [Basic Multi-Part Payments](#basic-multi-part-payments)
     * [Route Blinding](#route-blinding)
-    * [Onion Message Payload Format](#onion-message-payload-format)
   * [Accepting and Forwarding a Payment](#accepting-and-forwarding-a-payment)
     * [Payload for the Last Node](#payload-for-the-last-node)
     * [Non-strict Forwarding](#non-strict-forwarding)
@@ -586,111 +585,6 @@ route must not return standard onion errors, because they would provide
 information to the sender that could help them unblind the identity of the
 blinded nodes.
 
-
-### Onion Message Payload Format
-
-Onion messages contain an `onion_packet`, with a slightly more
-flexible format: instead of 1300 byte payloads, the payload length is
-implied by the total length (minus 66 bytes for the header and
-tailer):
-
-1. type: `onion_message_packet`
-2. data:
-   * [`byte`:`version`]
-   * [`point`:`public_key`]
-   * [`...*byte`:`onionmsg_payloads`]
-   * [`32*byte`:`hmac`]
-
-The `onionmsg_payloads` is the same as the `hop_payloads` format,
-except there is no "legacy" length: a 0 `length` would mean an empty
-`onionmsg_payload`:
-
-1. type: `onionmsg_payloads`
-2. data:
-   * [`bigsize`:`length`]
-   * [`length*u8`:`onionmsg_tlv`]
-   * [`32*byte`:`hmac`]
-   * ...
-   * `filler`
-
-The `onionmsg_tlv` itself is a TLV: an intermediate node expects an
-`encrypted_tlv_stream` which it can decrypt into an `encrypted_data_tlv`
-using the `blinding` which it is handed along with the onion message.
-
-Field numbers 64 and above are reserved for payloads for the final
-hop.
-
-1. `tlv_stream`: `onionmsg_tlv`
-2. types:
-    1. type: 2 (`reply_path`)
-    2. data:
-        * [`point`:`first_node_id`]
-        * [`point`:`blinding`]
-        * [`...*onionmsg_path`:`path`]
-    1. type: 4 (`encrypted_data`)
-    2. data:
-        * [`...*byte`:`encrypted_data`]
-
-1. subtype: `onionmsg_path`
-2. data:
-    * [`point`:`blinded_node_id`]
-    * [`u16`:`enclen`]
-    * [`enclen*byte`:`encrypted_recipient_data`]
-
-
-#### Requirements
-
-The writer:
-- For the non-final nodes' `onionmsg_tlv`:
-  - MUST set `encrypted_data` to a valid `encrypted_data_tlv` stream containing `next_node_id` (as detailed in [Route Blinding](#route-blinding))
-  - MAY include `padding`.
-  - MUST NOT set `path_id`.
-- For the final node's `onionmsg_tlv`:
-  - if the final node is permitted to reply:
-    - MUST set `reply_path` `blinding` to the initial blinding factor for the `next_node_id`
-    - MUST set `reply_path` `first_node_id` to the unblinded node id of the first node in the reply path.
-    - For every `reply_path` `path`:
-      - MUST set `blinded_node_id` to the blinded node id to encrypt the onion hop for.
-      - MUST encrypt `encrypted_recipient_data` as detailed in [Route Blinding](#route-blinding).
-      - MUST set `encrypted_recipient_data` to a valid encrypted `encrypted_data_tlv` stream which meets the requirements
-        of the `onionmsg_tlv` when used by the recipient.
-      - MAY use `path_id` to contain a secret so it can recognize use of this `reply_path`.
-  - otherwise:
-    - MUST NOT set `reply_path`.
-
-The reader:
-- if it is not the final node according to the onion encryption:
-  - if `encrypted_data` is not present, or does not decrypt with the shared secret from the given `blinding` parameter:
-    - MUST drop the message.
-  - if the decrypted `encrypted_data` is not a valid `encrypted_data_tlv` tlvstream or does not contain `next_node_id`:
-    - MUST drop the message.
-  - if the decrypted `encrypted_data` contains `path_id`:
-    - MUST drop the message.
-  - otherwise:
-    - MUST ignore `padding`, if any.
-    - SHOULD forward the message using `onion_message` to the next peer indicated by `next_node_id`.
-    - if it forwards the message:
-      - MUST set `blinding` in the forwarded `onion_message` to the next blinding as calculated in [Route Blinding](#route-blinding).
-- otherwise (it is the final node):
-  - if `path_id` is set and corresponds to a path the reader has previously published in a `reply_path`:
-    - if the onion message is not a reply to that previous onion:
-	  - MUST ignore the onion message
-  - otherwise (unknown or unset `path_id`):
-    - if the onion message is a reply to an onion message which contained a `path_id`:
-	  - MUST respond (or not respond) exactly as if it did not send the initial onion message.
-  - if it wants to send a reply:
-    - MUST create an onion message using `reply_path`.
-    - MUST send the reply via `onion_message` to the node indicated by
-        the `first_node_id`, using `reply_path` `blinding` to send
-        along `reply_path` `path`.
-
-
-#### Rationale
-
-Care must be taken that replies are only accepted using the exact
-reply_path given, otherwise probing is possible.  That means checking
-both ways: non-replies don't use the reply path, and replies always
-use the reply path.
 
 # Accepting and Forwarding a Payment
 
@@ -1509,6 +1403,13 @@ they are not associated with a particular local channel.  Like HTLCs,
 they use [onion messages](#onion-message-payload-format) protocol for
 end-to-end encryption.
 
+Onion messages use the same form as HTLC `onion_packet`, with a
+slightly more flexible format: instead of 1300 byte payloads, the
+payload length is implied by the total length (minus 66 bytes for the
+header and tailer).  The `onionmsg_payloads` themselves are the same
+as the `hop_payloads` format, except there is no "legacy" length: a 0
+`length` would mean an empty `onionmsg_payload`.
+
 Onion messages are unreliable: in particular, they are designed to
 be cheap to process and require no storage to forward.  As a result,
 there is no error returned from intermediary nodes.
@@ -1523,23 +1424,128 @@ For consistency, all onion messages use [Route Blinding](#route-blinding).
     * [`u16`:`len`]
     * [`len*byte`:`onion_message_packet`]
 
-## Requirements
+1. type: `onion_message_packet`
+2. data:
+   * [`byte`:`version`]
+   * [`point`:`public_key`]
+   * [`...*byte`:`onionmsg_payloads`]
+   * [`32*byte`:`hmac`]
+
+1. type: `onionmsg_payloads`
+2. data:
+   * [`bigsize`:`length`]
+   * [`length*u8`:`onionmsg_tlv`]
+   * [`32*byte`:`hmac`]
+   * ...
+   * `filler`
+
+The `onionmsg_tlv` itself is a TLV: an intermediate node expects an
+`encrypted_tlv_stream` which it can decrypt into an `encrypted_data_tlv`
+using the `blinding` which it is handed along with the onion message.
+
+Field numbers 64 and above are reserved for payloads for the final
+hop.
+
+1. `tlv_stream`: `onionmsg_tlv`
+2. types:
+    1. type: 2 (`reply_path`)
+    2. data:
+        * [`point`:`first_node_id`]
+        * [`point`:`blinding`]
+        * [`...*onionmsg_path`:`path`]
+    1. type: 4 (`encrypted_recipient_data`)
+    2. data:
+        * [`...*byte`:`encrypted_recipient_data`]
+
+1. subtype: `onionmsg_path`
+2. data:
+    * [`point`:`blinded_node_id`]
+    * [`u16`:`enclen`]
+    * [`enclen*byte`:`encrypted_recipient_data`]
+
+
+#### Requirements
+
+The creator of `encrypted_recipient_data` (usually, the recipient of the onion):
+
+  - MUST create the `encrypted_recipient_data` from the `encrypted_data_tlv` as required in [Route Blinding](#route-blinding).
+  - MUST NOT include `short_channel_id`, `payment_relay` or `payment_constraints` in any `encrypted_data_tlv`
+  - MUST include `encrypted_data_tlv.next_node_id` for each non-final node.
+  - MUST NOT include any other fields in `encrypted_data_tlv` for any non-final node.
+  - MUST create the `encrypted_recipient_data` from the `encrypted_data_tlv` as required in [Route Blinding](#route-blinding).
 
 The writer:
-- MUST populate the per-hop payloads as described in [Onion Message Payload Format](onion-message-payload-format).
-- SHOULD retry via a different route if it expects a response and
+
+- MUST set the `onion_message_packet` `version` to 0.
+- MUST construct the `onion_message_packet` `onionmsg_payloads` as detailed above using Sphinx.
+- SHOULD set `onion_message_packet` `len` to 1366 or 32834.
+- SHOULD retry via a different path if it expects a response and
   doesn't receive one after a reasonable period.
-- SHOULD set `len` to 1366 or 32834.
+- For the non-final nodes' `onionmsg_tlv`:
+  - MUST NOT set `reply_path` 
+- For the final node's `onionmsg_tlv`:
+  - if the final node is permitted to reply:
+    - MUST set `reply_path` `blinding` to the initial blinding factor for the `first_node_id`
+    - MUST set `reply_path` `first_node_id` to the unblinded node id of the first node in the reply path.
+    - For every `reply_path` `path`:
+      - MUST set `blinded_node_id` to the blinded node id to encrypt the onion hop for.
+      - MUST set `encrypted_recipient_data` to a valid encrypted `encrypted_data_tlv` stream which meets the requirements of the `onionmsg_tlv` when used by the recipient.
+      - MAY use `path_id` to contain a secret so it can recognize use of this `reply_path`.
+  - otherwise:
+    - MUST NOT set `reply_path`.
+- SHOULD retry via a different route if it expects a response and doesn't receive one after a reasonable period.
+
 
 The reader:
-- MUST handle the per-hop payloads as described in [Onion Message Payload Format](onion-message-payload-format).
+
 - SHOULD accept onion messages from peers without an established channel.
 - MAY rate-limit messages by dropping them.
+- MUST read the `encrypted_recipient_data` using `blinding` as required in [Route Blinding](#route-blinding).
+  - MUST ignore the message if that considers the message invalid.
+- if `encrypted_data_tlv` contains `allowed_features`:
+  - MUST return an error if:
+    - `encrypted_data_tlv.allowed_features.features` contains an unknown feature bit (even if it is odd).
+    - the payment uses a feature not included in `encrypted_data_tlv.allowed_features.features`.
+- if it is not the final node according to the onion encryption:
+  - if the `onionmsg_tlv` contains other tlv fields than `encrypted_recipient_data`:
+    - MUST ignore the message.
+  - if the `encrypted_data_tlv` contains `path_id`:
+    - MUST ignore the message.
+  - otherwise:
+    - SHOULD forward the message using `onion_message` to the next peer indicated by `next_node_id`.
+    - if it forwards the message:
+      - MUST set `blinding` in the forwarded `onion_message` to the next blinding as calculated in [Route Blinding](#route-blinding).
+- otherwise (it is the final node):
+  - if `path_id` is set and corresponds to a path the reader has previously published in a `reply_path`:
+    - if the onion message is not a reply to that previous onion:
+	  - MUST ignore the onion message
+  - otherwise (unknown or unset `path_id`):
+    - if the onion message is a reply to an onion message which contained a `path_id`:
+	  - MUST respond (or not respond) exactly as if it did not send the initial onion message.
+  - if the `onionmsg_tlv` contains other tlv fields than `encrypted_recipient_data` and `reply_path`:
+    - MUST ignore the message.
+  - if it wants to send a reply:
+    - MUST create an onion message using `reply_path`.
+    - MUST send the reply via `onion_message` to the node indicated by
+        the `first_node_id`, using `reply_path` `blinding` to send
+        along `reply_path` `path`.
 
-## Rationale
+
+#### Rationale
+
+Care must be taken that replies are only accepted using the exact
+reply_path given, otherwise probing is possible.  That means checking
+both ways: non-replies don't use the reply path, and replies always
+use the reply path.
+
+The requirement to discard messages with `onionmsg_tlv` fields which
+are not strictly required ensures consistency between current and
+future implementations.  Even odd fields can be a problem since they
+are parsed (and thus may be rejected!) by nodes which understand them,
+and ignored by those which don't.
 
 All onion messages are blinded, even though this overhead is not
-always necessary (33 bytes here, the 16-byte MAC for each enctlv in
+always necessary (33 bytes here, the 16-byte MAC for each encrypted_data_tlv in
 the onion).  This blinding allows nodes to use a path provided by
 others without knowing its contents.  Using it universally simplifies
 implementations a little, and makes it more difficult to distinguish
