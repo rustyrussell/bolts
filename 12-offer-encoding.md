@@ -703,7 +703,9 @@ A reader of an invoice:
   - MUST reject the invoice if `invoice_paths` is not present or is empty.
   - MUST reject the invoice if `invoice_blindedpay` is not present.
   - MUST reject the invoice if `invoice_blindedpay` does not contain exactly one `blinded_payinfo` per `invoice_paths`.`blinded_path`.
-  - MUST reject the invoice if `features` in any `blinded_payinfo` has any unknown even bits set.
+  - For each `invoice_blindedpay`.`payinfo`:
+    - MUST NOT use the corresponding `invoice_paths`.`path` if `payinfo`.`features` has any unknown even bits set.
+    - MUST reject the invoice if this leaves no usable paths.
   - if the invoice is a response to an `invoice_request`:
     - MUST reject the invoice if all fields less than type 160 do not exactly match the `invoice_request`.
     - if `offer_node_id` is present (invoice_request for an offer):
