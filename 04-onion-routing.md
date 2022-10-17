@@ -1478,6 +1478,7 @@ The writer:
 
 - MUST set the `onion_message_packet` `version` to 0.
 - MUST construct the `onion_message_packet` `onionmsg_payloads` as detailed above using Sphinx.
+- MUST NOT use any `associated_data` in the Sphinx construcion.
 - SHOULD set `onion_message_packet` `len` to 1366 or 32834.
 - SHOULD retry via a different path if it expects a response and
   doesn't receive one after a reasonable period.
