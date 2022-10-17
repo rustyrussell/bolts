@@ -244,6 +244,9 @@ A writer of an offer:
       - MUST specify `offer_currency` `iso4217` as an ISO 4712 three-letter code.
       - MUST specify `offer_amount` in the currency unit adjusted by the ISO 4712
         exponent (e.g. USD cents).
+  - otherwise:
+    - MUST NOT set `offer_amount`
+    - MUST NOT set `offer_currency`
   - MAY set `offer_metadata` for its own use.
   - if it supports bolt12 offer features:
     - MUST set `offer_features`.`features` to the bitmap of bolt12 features.
@@ -279,16 +282,25 @@ A reader of an offer:
   - if `offer_features` contains unknown _even_ bits that are non-zero:
     - MUST NOT respond to the offer.
     - SHOULD indicate the unknown bit to the user.
+  - if `offer_chains` is not set:
+    - if the node does not accept bitcoin invoices:
+      - MUST NOT respond to the offer
+  - otherwise: (`offer_chains` is set):
+    - if the node does not accept invoices for any of the `chains`:
+      - MUST NOT respond to the offer
   - if `offer_description` is not set:
     - MUST NOT respond to the offer.
   - if `offer_node_id` is not set:
     - MUST NOT respond to the offer.
   - if it uses `offer_amount` to provide the user with a cost estimate:
+    - MUST take into account the currency units for `offer_amount`:
+      - `offer_currency` field if set
+      - otherwise, the minimum lightning-payable unit (e.g. milli-satoshis for
+        bitcoin).
     - MUST warn user if amount of actual invoice differs significantly
-        from that expectation.
+        from that estimate.
   - SHOULD not respond to an offer if the current time is after
     `offer_absolute_expiry`.
-  - FIXME: more!
 
 ## Rationale
 
