@@ -268,7 +268,8 @@ A writer of an offer:
       - MAY follow with a space and more text
   - if it can supply more than one item for a single invoice
     - if the maximum quantity is known:
-      - MUST set that maximum in `offer_quantity_max`
+      - MUST set that maximum in `offer_quantity_max`.
+      - MUST not set `offer_quantity_max` to 1.
     - otherwise:
       - MUST set `offer_quantity_max` to 0.
   - otherwise:
@@ -423,7 +424,7 @@ The writer:
     - MUST set `invreq_payer_id` to a transient public key.
     - MUST remember the secret key corresponding to `invreq_payer_id`.
     - if `offer_quantity_max` is present:
-      - MUST set `invreq_quantity`
+      - MUST set `invreq_quantity` to greater than zero.
       - if `offer_quantity_max` is non-zero:
         - MUST set `invreq_quantity` less than or equal to `offer_quantity_max`.
     - otherwise:
@@ -456,7 +457,7 @@ The reader:
     - if `offer_quantity_max` is present:
       - MUST fail the request if there is no `invreq_quantity` field.
       - if `offer_quantity_max` is non-zero:
-        - MUST fail the request if `invreq_quantity` is greater than `offer_quantity_max`.
+        - MUST fail the request if `invreq_quantity` is zero, OR greater than `offer_quantity_max`.
     - otherwise:
       - MUST fail the request if there is an `invreq_quantity` field.
     - if `offer_amount` is present:
