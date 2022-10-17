@@ -515,7 +515,10 @@ Invoices are a payment request, and when the payment is made,
 it can be combined with the invoice to form a cryptographic receipt.
 
 The human-readable prefix for invoices is `lni`.  The recipient can send it in
-response to an `invoice_request` using the `onion_message` `invoice` field.
+response to an `invoice_request` using the `onion_message` `invoice` field
+(in which case, it duplicates the fields including the compulsory
+`invreq_payer_id`), or can be produced spontanously (in which case, it has
+more limited fields, and in particular has no `invreq_payer_id`).
 
 1. `tlv_stream`: `invoice`
 2. types:
@@ -636,17 +639,21 @@ may (due to capacity limits on a single channel) require it.
 ## Requirements
 
 A writer of an invoice:
-  - MUST copy all non-signature fields from the invreq (including unknown fields).
   - MUST set `invoice_created_at` to the number of seconds since Midnight 1
     January 1970, UTC when the offer was created.
   - MUST set `invoice_amount` to the minimum amount it will accept, in units of 
     the minimal lightning-payable unit (e.g. milli-satoshis for bitcoin) for
     `invreq_chain`.
   - if the invoice is in response to an `invoice_request`:
+    - MUST copy all non-signature fields from the `invoice_request` (including unknown fields).
     - if `invreq_amount` is present:
       - MUST set `invoice_amount` to `invreq_amount`
     - otherwise:
       - MUST set `invoice_amount` to the *expected amount*.
+  - otherwise (invoice not requested, e.g. for user to scan directly):
+    - MUST set `invreq_chain` as it would for an invoice_request.
+    - MUST set `offer_description` and `offer_node_id` as it would for an offer.
+    - MUST NOT set `invreq_payer_id`.
   - MUST set `invoice_payment_hash` to the SHA256 hash of the
     `payment_preimage` that will be given in return for payment.
   - if `offer_node_id` is not present:
@@ -683,27 +690,12 @@ A writer of an invoice:
 
 A reader of an invoice:
   - MUST reject the invoice if `invoice_amount` is not present.
-  - MUST reject the invoice if `invreq_payer_id` is not present.
-  - if `offer_node_id` is present:
-    - MUST reject the invoice if `invoice_code` is present.
-    - MUST reject the invoice if `signature` is not a valid signature using `offer_node_id` as described in [Signature Calculation](#signature-calculation).
-  - otherwise:
-    - MUST reject the invoice if `signature` is present.
-    - if `invoice_code` is present:
-      - SHOULD reject the invoice if it cannot confirm that `invoice_code` is correct, out-of-band .
-  - MUST reject the invoice if `offer_description` is not present.
   - MUST reject the invoice if `invoice_created_at` is not present.
   - MUST reject the invoice if `invoice_payment_hash` is not present.
   - if `invoice_features` contains unknown _odd_ bits that are non-zero:
     - MUST ignore the bit.
   - if `invoice_features` contains unknown _even_ bits that are non-zero:
     - MUST reject the invoice.
-  - if `invoice_features` contains the MPP/compulsory bit:
-    - SHOULD pay the invoice via multiple separate blinded paths.
-  - otherwise, if `invoice_features` contains the MPP/optional bit:
-    - MAY pay the invoice via multiple separate payments.
-  - otherwise:
-    - MUST NOT use multiple payments to pay the invoice.
   - if `invoice_relative_expiry` is present:
     - MUST reject the invoice if the current time since 1970-01-01 UTC is greater than `invoice_created_at` plus `seconds_from_creation`.
   - otherwise:
@@ -712,14 +704,30 @@ A reader of an invoice:
   - MUST reject the invoice if `invoice_blindedpay` is not present.
   - MUST reject the invoice if `invoice_blindedpay` does not contain exactly one `blinded_payinfo` per `invoice_paths`.`blinded_path`.
   - MUST reject the invoice if `features` in any `blinded_payinfo` has any unknown even bits set.
-  - SHOULD confirm authorization if `invoice_amount`.`msat` is not within the amount range authorized.
   - if the invoice is a response to an `invoice_request`:
     - MUST reject the invoice if all fields less than type 160 do not exactly match the `invoice_request`.
+    - if `offer_node_id` is present (invoice_request for an offer):
+      - MUST reject the invoice if `invoice_code` is present.
+      - MUST reject the invoice if `signature` is not a valid signature using `offer_node_id` as described in [Signature Calculation](#signature-calculation).
+    - otherwise (invoice_request without an offer):
+      - MUST reject the invoice if `signature` is present.
+      - if `invoice_code` is present:
+        - SHOULD reject the invoice if it cannot confirm that `invoice_code` is correct, out-of-band .
   - otherwise: (a invoice presented without being requested, eg. scanned by user):
     - if `invreq_chain` is not present:
        - MUST reject the invoice if bitcoin is not a supported chain.
     - otherwise:
        - MUST reject the invoice if `invreq_chain` is not a supported chain.
+    - MUST reject the invoice if `invreq_payer_id` is present.
+    - MUST reject the invoice if `offer_description` is not present.
+    - MUST reject the invoice if `offer_node_id` is not present.
+  - if `invoice_features` contains the MPP/compulsory bit:
+    - SHOULD pay the invoice via multiple separate blinded paths.
+  - otherwise, if `invoice_features` contains the MPP/optional bit:
+    - MAY pay the invoice via multiple separate payments.
+  - otherwise:
+    - MUST NOT use multiple payments to pay the invoice.
+  - SHOULD confirm authorization if `invoice_amount`.`msat` is not within the amount range authorized.
   - for the bitcoin chain, if the invoice specifies `invoice_fallbacks`:
     - MUST ignore any `fallback_address` for which `version` is greater than 16.
     - MUST ignore any `fallback_address` for which `address` is less than 2 or greater than 40 bytes.
