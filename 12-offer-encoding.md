@@ -435,7 +435,7 @@ The writer:
     - if the chain for the invoice is not solely bitcoin:
       - MUST specify `invreq_chain` the offer is valid for.
     - MUST set `invreq_amount`.
-  - MUST NOT set any tlv fields greater or equal to 160.
+  - MUST NOT set any non-signature TLV fields greater or equal to 160.
   - MUST set `invreq_metadata` to an unpredictable series of bytes.
   - if it sets `invreq_amount`:
     - MUST set `msat` in multiples of the minimum lightning-payable unit
@@ -444,15 +444,15 @@ The writer:
     - MUST set `invreq_features`.`features` to the bitmap of features.
 
 The reader:
-  - MUST fail the request if `invreq_payer_id` is not present.
-  - MUST fail the request if any TLV fields greater or equal to 160.
+  - MUST fail the request if `invreq_payer_id` or `invreq_metadata` are not present.
+  - MUST fail the request if any non-signature TLV fields greater or equal to 160.
   - if `invreq_features` contains unknown _odd_ bits that are non-zero:
     - MUST ignore the bit.
   - if `invreq_features` contains unknown _even_ bits that are non-zero:
     - MUST fail the request.
   - if `offer_node_id` is present (response to an offer):
     - MUST fail the request if the offer fields do not exactly match a valid, unexpired offer.
-    - MUST fail the request if `invreq_signature` is not correct as detailed in [Signature Calculation](#signature-calculation) using the `invreq_payer_id`.
+    - MUST fail the request if `signature` is not correct as detailed in [Signature Calculation](#signature-calculation) using the `invreq_payer_id`.
     - if `offer_quantity_max` is present:
       - MUST fail the request if there is no `invreq_quantity` field.
       - if `offer_quantity_max` is non-zero:
@@ -460,14 +460,13 @@ The reader:
     - otherwise:
       - MUST fail the request if there is an `invreq_quantity` field.
     - if `offer_amount` is present:
-      - MUST calculate the *base invoice amount* using the `offer_amount`:
+      - MUST calculate the *expected amount* using the `offer_amount`:
         - if `offer_currency` is not the `invreq_chain` currency, convert to the
           `invreq_chain` currency.
         - if `invreq_quantity` is present, multiply by `invreq_quantity`.`quantity`.
       - if `invreq_amount` is present:
-        - MUST fail the request if `invreq_amount`.`msat` is less than the *base invoice amount*.
-        - MAY fail the request if `invreq_amount`.`msat` exceeds the *base invoice amount*.
-        - MUST use `invreq_amount`.`msat` as the *base invoice amount*.
+        - MUST fail the request if `invreq_amount`.`msat` is less than the *expected amount*.
+        - MAY fail the request if `invreq_amount`.`msat` greatly exceeds the *expected amount*.
     - otherwise (no `offer_amount`):
       - MUST fail the request if it does not contain `invreq_amount`.
     - SHOULD send an invoice in response using the `onionmsg_tlv` `reply_path`.
@@ -475,7 +474,6 @@ The reader:
     - MUST fail the request if any of the following are present:
       - `signature`, `offer_chains`, `offer_features` or `offer_quantity_max`.
     - MUST fail the request if `invreq_amount` is not present.
-    - MUST use `invreq_amount`.`msat` as the *base invoice amount*.
     - MAY use `offer_amount` (or `offer_currency`) for informational display to user.
     - if it sends an invoice in response:
       - MUST use `offer_paths` if present, otherwise MUST use `invreq_payer_id` as the node id to send to.
@@ -640,6 +638,14 @@ A writer of an invoice:
   - MUST copy all non-signature fields from the invreq (including unknown fields).
   - MUST set `invoice_created_at` to the number of seconds since Midnight 1
     January 1970, UTC when the offer was created.
+  - MUST set `invoice_amount` to the minimum amount it will accept, in units of 
+    the minimal lightning-payable unit (e.g. milli-satoshis for bitcoin) for
+    `invreq_chain`.
+  - if the invoice is in response to an `invoice_request`:
+    - if `invreq_amount` is present:
+      - MUST set `invoice_amount` to `invreq_amount`
+    - otherwise:
+      - MUST set `invoice_amount` to the *expected amount*.
   - MUST set `invoice_payment_hash` to the SHA256 hash of the
     `payment_preimage` that will be given in return for payment.
   - if `offer_node_id` is not present:
@@ -707,7 +713,7 @@ A reader of an invoice:
   - MUST reject the invoice if `features` in any `blinded_payinfo` has any unknown even bits set.
   - SHOULD confirm authorization if `invoice_amount`.`msat` is not within the amount range authorized.
   - if the invoice is a response to an `invoice_request`:
-    - MUST reject the invoice if all fields less than type 160 do not exactly match the `invoice_request`, except `invreq_amount`
+    - MUST reject the invoice if all fields less than type 160 do not exactly match the `invoice_request`.
   - otherwise: (a invoice presented without being requested, eg. scanned by user):
     - if `invreq_chain` is not present:
        - MUST reject the invoice if bitcoin is not a supported chain.
