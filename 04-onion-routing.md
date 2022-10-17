@@ -1450,19 +1450,23 @@ hop.
 2. types:
     1. type: 2 (`reply_path`)
     2. data:
-        * [`point`:`first_node_id`]
-        * [`point`:`blinding`]
-        * [`...*onionmsg_path`:`path`]
+        * [`blinded_path`:`path`]
     1. type: 4 (`encrypted_recipient_data`)
     2. data:
         * [`...*byte`:`encrypted_recipient_data`]
 
-1. subtype: `onionmsg_path`
+1. subtype: `blinded_path`
+2. data:
+   * [`point`:`first_node_id`]
+   * [`point`:`blinding`]
+   * [`byte`:`num_hops`]
+   * [`num_hops*onionmsg_hop`:`path`]
+
+1. subtype: `onionmsg_hop`
 2. data:
     * [`point`:`blinded_node_id`]
     * [`u16`:`enclen`]
     * [`enclen*byte`:`encrypted_recipient_data`]
-
 
 #### Requirements
 
