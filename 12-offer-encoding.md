@@ -326,12 +326,12 @@ the onion message.
 
 The second case is publishing an `invoice_request` without an offer,
 such as via QR code.  It contains no `offer_node_id` (using the
-`invoice_request_payer_id` instead, as it in the one paying), and the
+`invreq_payer_id` instead, as it in the one paying), and the
 other offer fields are filled by the creator of the `invoice_request`,
 forming a kind of offer-to-send-money.
 
-Note: the `invoice_request_metadata` is numbered 0 (not in the
-80-159 range for other invoice_request fields) as this is the first
+Note: the `invreq_metadata` is numbered 0 (not in the
+80-159 range for other invreq fields) as this is the first
 TLV element, which ensures payer-provided entropy is used in hashing
 for [Signature Calculation](#signature-calculation).
 
@@ -340,7 +340,7 @@ for [Signature Calculation](#signature-calculation).
 
 1. `tlv_stream`: `invoice_request`
 2. types:
-    1. type: 0 (`invoice_request_metadata`)
+    1. type: 0 (`invreq_metadata`)
     2. data:
         * [`...*byte`:`blob`]
     1. type: 2 (`offer_chains`)
@@ -379,22 +379,22 @@ for [Signature Calculation](#signature-calculation).
     1. type: 24 (`offer_node_id`)
     2. data:
         * [`point`:`node_id`]
-    1. type: 80 (`invoice_request_chain`)
+    1. type: 80 (`invreq_chain`)
     2. data:
         * [`chain_hash`:`chain`]
-    1. type: 82 (`invoice_request_amount`)
+    1. type: 82 (`invreq_amount`)
     2. data:
         * [`tu64`:`msat`]
-    1. type: 84 (`invoice_request_features`)
+    1. type: 84 (`invreq_features`)
     2. data:
         * [`...*byte`:`features`]
-    1. type: 86 (`invoice_request_quantity`)
+    1. type: 86 (`invreq_quantity`)
     2. data:
         * [`tu64`:`quantity`]
-    1. type: 88 (`invoice_request_payer_id`)
+    1. type: 88 (`invreq_payer_id`)
     2. data:
         * [`point`:`key`]
-    1. type: 89 (`invoice_request_payer_note`)
+    1. type: 89 (`invreq_payer_note`)
     2. data:
         * [`...*utf8`:`note`]
     1. type: 240 (`signature`)
@@ -407,103 +407,103 @@ The writer:
   - if it is responding to an offer:
     - MUST copy all fields from the offer (including unknown fields).
     - if `offer_chains` is set:
-      - MUST set `invoice_request_chain` to one of `offer_chains` unless that chain is bitcoin, in which case it MAY omit `invoice_request_chain`.
+      - MUST set `invreq_chain` to one of `offer_chains` unless that chain is bitcoin, in which case it MAY omit `invreq_chain`.
     - otherwise:
-      - if it sets `invoice_request_chain` it MUST set it to bitcoin.
-    - MUST set `signature`.`sig` as detailed in [Signature Calculation](#signature-calculation) using the `invoice_request_payer_id`.
+      - if it sets `invreq_chain` it MUST set it to bitcoin.
+    - MUST set `signature`.`sig` as detailed in [Signature Calculation](#signature-calculation) using the `invreq_payer_id`.
     - if `offer_amount` is not present:
-      - MUST specify `invoice_request_amount`.
+      - MUST specify `invreq_amount`.
     - otherwise:
-      - MAY omit `invoice_request_amount`.
-      - if it sets `invoice_request_amount`:
-        - MUST specify `invoice_request_amount`.`msat` as greater or equal to amount expected by `offer_amount` (and, if present, `offer_currency` and `invoice_request_quantity`).
-    - MUST set `invoice_request_payer_id` to a transient public key.
-    - MUST remember the secret key corresponding to `invoice_request_payer_id`.
+      - MAY omit `invreq_amount`.
+      - if it sets `invreq_amount`:
+        - MUST specify `invreq_amount`.`msat` as greater or equal to amount expected by `offer_amount` (and, if present, `offer_currency` and `invreq_quantity`).
+    - MUST set `invreq_payer_id` to a transient public key.
+    - MUST remember the secret key corresponding to `invreq_payer_id`.
     - if `offer_quantity_min` or `offer_quantity_max` are present:
-      - MUST set `invoice_request_quantity`
+      - MUST set `invreq_quantity`
       - MUST set it within that (inclusive) range.
     - otherwise:
-      - MUST NOT set `invoice_request_quantity`
+      - MUST NOT set `invreq_quantity`
   - otherwise (not responding to an offer):
     - MUST set (or not set) `offer_metadata`, `offer_description`, `offer_absolute_expiry`, `offer_paths` and `offer_issuer` as it would for an offer.
-    - MUST set `invoice_request_payer_id` as it would set `offer_node_id` for an offer.
+    - MUST set `invreq_payer_id` as it would set `offer_node_id` for an offer.
     - MUST NOT include `signature`, `offer_chains`, `offer_amount`, `offer_currency`, `offer_features`, `offer_quantity_min`, `offer_quantity_max` or `offer_node_id`
     - if the chain for the invoice is not solely bitcoin:
-      - MUST specify `invoice_request_chain` the offer is valid for.
-    - MUST set `invoice_request_amount`.
+      - MUST specify `invreq_chain` the offer is valid for.
+    - MUST set `invreq_amount`.
   - MUST NOT set any tlv fields greater or equal to 160.
-  - MUST set `invoice_request_metadata` to an unpredictable series of bytes.
-  - if it sets `invoice_request_amount`:
+  - MUST set `invreq_metadata` to an unpredictable series of bytes.
+  - if it sets `invreq_amount`:
     - MUST set `msat` in multiples of the minimum lightning-payable unit
-        (e.g. milli-satoshis for bitcoin) for `invoice_request_chain` (or for bitcoin, if there is no `invoice_request_chain`).
+        (e.g. milli-satoshis for bitcoin) for `invreq_chain` (or for bitcoin, if there is no `invreq_chain`).
   - if it supports bolt12 invoice request features:
-    - MUST set `invoice_request_features`.`features` to the bitmap of features.
+    - MUST set `invreq_features`.`features` to the bitmap of features.
 
 The reader:
-  - MUST fail the request if `invoice_request_payer_id` is not present.
+  - MUST fail the request if `invreq_payer_id` is not present.
   - MUST fail the request if any fields have type greater or equal to 160.
-  - if `invoice_request_features` contains unknown _odd_ bits that are non-zero:
+  - if `invreq_features` contains unknown _odd_ bits that are non-zero:
     - MUST ignore the bit.
-  - if `invoice_request_features` contains unknown _even_ bits that are non-zero:
+  - if `invreq_features` contains unknown _even_ bits that are non-zero:
     - MUST fail the request.
   - if `offer_node_id` is present (response to an offer):
     - MUST fail the request if the offer fields do not exactly match a valid, unexpired offer.
-    - MUST fail the request if `invoice_request_signature` is not correct as detailed in [Signature Calculation](#signature-calculation) using the `invoice_request_payer_id`.
+    - MUST fail the request if `invreq_signature` is not correct as detailed in [Signature Calculation](#signature-calculation) using the `invreq_payer_id`.
     - if `offer_quantity_min` or `offer_quantity_max` is present:
-      - MUST fail the request if there is no `invoice_request_quantity` field.
-      - MUST fail the request if `invoice_request_quantity` is not within that (inclusive) range.
+      - MUST fail the request if there is no `invreq_quantity` field.
+      - MUST fail the request if `invreq_quantity` is not within that (inclusive) range.
     - otherwise:
-      - MUST fail the request if there is an `invoice_request_quantity` field.
+      - MUST fail the request if there is an `invreq_quantity` field.
     - if `offer_amount` is present:
       - MUST calculate the *base invoice amount* using the `offer_amount`:
-        - if `offer_currency` is not the `invoice_request_chain` currency, convert to the
-          `invoice_request_chain` currency.
-        - if `invoice_request_quantity` is present, multiply by `invoice_request_quantity`.`quantity`.
-      - if `invoice_request_amount` is present:
-        - MUST fail the request if `invoice_request_amount`.`msat` is less than the *base invoice amount*.
-        - MAY fail the request if `invoice_request_amount`.`msat` exceeds the *base invoice amount*.
-        - MUST use `invoice_request_amount`.`msat` as the *base invoice amount*.
+        - if `offer_currency` is not the `invreq_chain` currency, convert to the
+          `invreq_chain` currency.
+        - if `invreq_quantity` is present, multiply by `invreq_quantity`.`quantity`.
+      - if `invreq_amount` is present:
+        - MUST fail the request if `invreq_amount`.`msat` is less than the *base invoice amount*.
+        - MAY fail the request if `invreq_amount`.`msat` exceeds the *base invoice amount*.
+        - MUST use `invreq_amount`.`msat` as the *base invoice amount*.
     - otherwise (no `offer_amount`):
-      - MUST fail the request if it does not contain `invoice_request_amount`.
+      - MUST fail the request if it does not contain `invreq_amount`.
     - SHOULD send an invoice in response using the `onionmsg_tlv` `reply_path`.
   - otherwise (no `offer_node_id`, not a response to our offer):
     - MUST fail the request if any of the following are present:
       - `signature`, `offer_chains`, `offer_features`, `offer_quantity_min`, or `offer_quantity_max`.
-    - MUST fail the request if `invoice_request_amount` is not present.
-    - MUST use `invoice_request_amount`.`msat` as the *base invoice amount*.
+    - MUST fail the request if `invreq_amount` is not present.
+    - MUST use `invreq_amount`.`msat` as the *base invoice amount*.
     - MAY use `offer_amount` (or `offer_currency`) for informational display to user.
     - if it sends an invoice in response:
-      - MUST use `offer_paths` if present, otherwise MUST use `invoice_request_payer_id` as the node id to send to.
-  - if `invoice_request_chain` is not present:
+      - MUST use `offer_paths` if present, otherwise MUST use `invreq_payer_id` as the node id to send to.
+  - if `invreq_chain` is not present:
     - MUST fail the request if bitcoin is not a supported chain.
   - otherwise:
-    - MUST fail the request if `invoice_request_chain`.`chain` is not a supported chain.
+    - MUST fail the request if `invreq_chain`.`chain` is not a supported chain.
 
 
 ## Rationale
 
-`invoice_request_metadata` might typically contain information about the derivation of the
-`invoice_request_payer_id`.  This should not leak any information (such as using a simple
+`invreq_metadata` might typically contain information about the derivation of the
+`invreq_payer_id`.  This should not leak any information (such as using a simple
 BIP-32 derivation path); a valid system might be for a node to maintain a base
 payer key and encode a 128-bit tweak here.  The payer_id would be derived by
 tweaking the base key with SHA256(payer_base_pubkey || tweak).  It's also
 the first entry (if present), ensuring an unpredictable nonce for hashing.
 
-`invoice_request_payer_note` allows you to compliment, taunt, or otherwise engrave
+`invreq_payer_note` allows you to compliment, taunt, or otherwise engrave
 graffiti into the invoice for all to see.
 
 Users can give a tip (or obscure the amount sent) by specifying an
-`invoice_request_amount` in their invoice request, even though the offer specifies an
+`invreq_amount` in their invoice request, even though the offer specifies an
 `offer_amount`.  The recipient will only accept this if
 the invoice request amount exceeds the amount it's expecting (i.e. its
-`offer_amount` after any currency conversion, multiplied by `invoice_request_quantity`, if
+`offer_amount` after any currency conversion, multiplied by `invreq_quantity`, if
 any).
 
-Non-offer-response `invoice_requests` are currently required to
-explicitly state the `invoice_request_amount` in the chain currency,
+Non-offer-response `invoice_request`s are currently required to
+explicitly state the `invreq_amount` in the chain currency,
 so `offer_amount` and `offer_currency` are redundant (but may be
 informative for the payer to know how the sender claims
-`invoice_request_amount` was derived).
+`invreq_amount` was derived).
 
 # Invoices
 
@@ -515,7 +515,7 @@ response to an `invoice_request` using the `onion_message` `invoice` field.
 
 1. `tlv_stream`: `invoice`
 2. types:
-    1. type: 0 (`invoice_request_metadata`)
+    1. type: 0 (`invreq_metadata`)
     2. data:
         * [`...*byte`:`blob`]
     1. type: 2 (`offer_chains`)
@@ -554,22 +554,22 @@ response to an `invoice_request` using the `onion_message` `invoice` field.
     1. type: 24 (`offer_node_id`)
     2. data:
         * [`point`:`node_id`]
-    1. type: 80 (`invoice_request_chain`)
+    1. type: 80 (`invreq_chain`)
     2. data:
         * [`chain_hash`:`chain`]
-    1. type: 82 (`invoice_request_amount`)
+    1. type: 82 (`invreq_amount`)
     2. data:
         * [`tu64`:`msat`]
-    1. type: 84 (`invoice_request_features`)
+    1. type: 84 (`invreq_features`)
     2. data:
         * [`...*byte`:`features`]
-    1. type: 86 (`invoice_request_quantity`)
+    1. type: 86 (`invreq_quantity`)
     2. data:
         * [`tu64`:`quantity`]
-    1. type: 88 (`invoice_request_payer_id`)
+    1. type: 88 (`invreq_payer_id`)
     2. data:
         * [`point`:`key`]
-    1. type: 89 (`invoice_request_payer_note`)
+    1. type: 89 (`invreq_payer_note`)
     2. data:
         * [`...*utf8`:`note`]
     1. type: 160 (`invoice_paths`)
@@ -635,7 +635,7 @@ may (due to capacity limits on a single channel) require it.
 ## Requirements
 
 A writer of an invoice:
-  - MUST copy all non-signature fields from the invoice_request (including unknown fields).
+  - MUST copy all non-signature fields from the invreq (including unknown fields).
   - MUST set `invoice_created_at` to the number of seconds since Midnight 1
     January 1970, UTC when the offer was created.
   - MUST set `invoice_payment_hash` to the SHA256 hash of the
@@ -667,14 +667,14 @@ A writer of an invoice:
     - MUST include `invoice_blindedpay` with exactly one `blinded_payinfo` for each `blinded_path` in `paths`, in order.
     - MUST set `features` in each `blinded_payinfo` to match `encrypted_data_tlv`.`allowed_features` (or empty, if no `allowed_features`).
     - SHOULD ignore any payment which does not use one of the paths.
-  - if `offer_node_id` is present, and `invoice_request_payer_id` is identical to a previous `invoice_request`:
+  - if `offer_node_id` is present, and `invreq_payer_id` is identical to a previous `invoice_request`:
     - MAY simply reuse the previous invoice.
   - otherwise:
     - MUST NOT reuse a previous invoice.
 
 A reader of an invoice:
   - MUST reject the invoice if `invoice_amount` is not present.
-  - MUST reject the invoice if `invoice_request_payer_id` is not present.
+  - MUST reject the invoice if `invreq_payer_id` is not present.
   - if `offer_node_id` is present:
     - MUST reject the invoice if `invoice_code` is present.
     - MUST reject the invoice if `signature` is not a valid signature using `offer_node_id` as described in [Signature Calculation](#signature-calculation).
@@ -705,12 +705,12 @@ A reader of an invoice:
   - MUST reject the invoice if `features` in any `blinded_payinfo` has any unknown even bits set.
   - SHOULD confirm authorization if `invoice_amount`.`msat` is not within the amount range authorized.
   - if the invoice is a response to an `invoice_request`:
-    - MUST reject the invoice if all fields less than type 160 do not exactly match the `invoice_request`, except `invoice_request_amount`
+    - MUST reject the invoice if all fields less than type 160 do not exactly match the `invoice_request`, except `invreq_amount`
   - otherwise: (a invoice presented without being requested, eg. scanned by user):
-    - if `invoice_request_chain` is not present:
+    - if `invreq_chain` is not present:
        - MUST reject the invoice if bitcoin is not a supported chain.
     - otherwise:
-       - MUST reject the invoice if `invoice_request_chain` is not a supported chain.
+       - MUST reject the invoice if `invreq_chain` is not a supported chain.
   - for the bitcoin chain, if the invoice specifies `invoice_fallbacks`:
     - MUST ignore any `fallback_address` for which `version` is greater than 16.
     - MUST ignore any `fallback_address` for which `address` is less than 2 or greater than 40 bytes.
@@ -720,30 +720,30 @@ A reader of an invoice:
 
 Because the messaging layer is unreliable, it's quite possible to
 receive multiple requests for the same offer.  As it's the caller's
-responsibility not to reuse `invoice_request_payer_id`
+responsibility not to reuse `invreq_payer_id`
 the writer doesn't have to check all the fields are duplicates before
 simply returning a previous invoice.  Note that such caching is optional,
 and should be carefully limited when e.g. currency conversion is involved,
 or if the invoice has expired.
 
 The invoice duplicates fields rather than committing to the previous
-invoice_request.  This flattened format simplifies storage at some space cost, as
+invreq.  This flattened format simplifies storage at some space cost, as
 the payer need only remember the invoice for any refunds or proof.
 
 The reader of the invoice cannot trust the invoice correctly reflects
-the invoice_request fields, hence the requirements to check that they
+the invreq fields, hence the requirements to check that they
 are correct, although allowance is made for simply sending an unrequested
 invoice directly.
 
 Note that the recipient of the invoice can determine the expected
-amount from either the offer it received, or the invoice_request it
+amount from either the offer it received, or the invreq it
 sent, so often already has authorization for the expected amount.
 
 The default `invoice_relative_expiry` of 7200 seconds, which is generally a
 sufficient time for payment, even if new channels need to be opened.
 
 Blinded paths provide an equivalent to `payment_secret` and `payment_metadata` used in BOLT 11.
-Even if `offer_node_id` or `invoice_request_payer_id` is public, we force the use of blinding paths to keep these features.
+Even if `offer_node_id` or `invreq_payer_id` is public, we force the use of blinding paths to keep these features.
 If the recipient does not care about the added privacy offered by blinded paths, they can create a path of length 1 with only themselves.
 
 Rather than provide detailed per-hop-payinfo for each hop in a blinded path, we aggregate the fees and CLTV deltas.
@@ -798,8 +798,8 @@ A reader of an invoice_error:
 Usually an error message is sufficient for diagnostics, however future
 enhancements may make automated handling useful.
 
-In particular, we could allow non-offer-response `invoice_requests` to
-omit `invoice_request_amount` in future and use offer fields to
+In particular, we could allow non-offer-response `invoice_request`s to
+omit `invreq_amount` in future and use offer fields to
 indicate alternate currencies.  ("I will send you 10c!").  Then the
 sender of the invoice would have to guess how many msat that was,
 and could use the `invoice_error` to indicate if the recipient disagreed
@@ -812,12 +812,12 @@ with the conversion so the sender can send a new invoice.
    perhaps with a signature from the original `offer_node_id`
 3. Any empty TLV fields can mean the value is supposed to be known by
    other means (i.e. transport-specific), but is still hashed for sig.
-4. We could upgrade to allow multiple offers in one invoice_request and
+4. We could upgrade to allow multiple offers in one invreq and
    invoice, to make a shopping list.
 7. All-zero offer_id == gratuitous payment.
 8. Streaming invoices?
 9. Re-add recurrence.
-10. Re-add `invoice_request_refund_for` to support proofs.
+10. Re-add `invreq_refund_for` to support proofs.
 11. Re-add `invoice_replace` for requesting replacement of a (stuck-payment) 
     invoice with a new one.
 12. Allow non-offer `invoice_request` with alternate currencies?
