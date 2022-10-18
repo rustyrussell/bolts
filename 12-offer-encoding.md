@@ -55,8 +55,8 @@ The merchant-pays-user flow (e.g. ATM or refund):
 1. The merchant publishes an *invoice_request* which contains offer fields
    which refer to its attempt to send money, including an amount.
 2. The user sends an *invoice* over the lightning network for the amount in the
-   *invoice_request*, using a temporary *invoice code*.
-3. The merchant confirms the *invoice code* to ensure it's about to pay the correct
+   *invoice_request*, using a (possibly temporary) *invoice_node_id*.
+3. The merchant confirms the *invoice_node_id* to ensure it's about to pay the correct
    person, and makes a payment to the invoice.
 
 ## Payment Proofs and Payer Proofs
@@ -451,9 +451,9 @@ The reader:
     - MUST ignore the bit.
   - if `invreq_features` contains unknown _even_ bits that are non-zero:
     - MUST fail the request.
+  - MUST fail the request if `signature` is not correct as detailed in [Signature Calculation](#signature-calculation) using the `invreq_payer_id`.
   - if `offer_node_id` is present (response to an offer):
     - MUST fail the request if the offer fields do not exactly match a valid, unexpired offer.
-    - MUST fail the request if `signature` is not correct as detailed in [Signature Calculation](#signature-calculation) using the `invreq_payer_id`.
     - if `offer_quantity_max` is present:
       - MUST fail the request if there is no `invreq_quantity` field.
       - if `offer_quantity_max` is non-zero:
@@ -473,7 +473,7 @@ The reader:
     - SHOULD send an invoice in response using the `onionmsg_tlv` `reply_path`.
   - otherwise (no `offer_node_id`, not a response to our offer):
     - MUST fail the request if any of the following are present:
-      - `signature`, `offer_chains`, `offer_features` or `offer_quantity_max`.
+      - `offer_chains`, `offer_features` or `offer_quantity_max`.
     - MUST fail the request if `invreq_amount` is not present.
     - MAY use `offer_amount` (or `offer_currency`) for informational display to user.
     - if it sends an invoice in response:
@@ -600,9 +600,9 @@ more limited fields, and in particular has no `invreq_payer_id`).
     1. type: 174 (`invoice_features`)
     2. data:
         * [`...*byte`:`features`]
-    1. type: 176 (`invoice_code`)
+    1. type: 176 (`invoice_node_id`)
     2. data:
-        * [`...*utf8`:`code`]
+        * [`point`:`node_id`]
     1. type: 240 (`signature`)
     2. data:
         * [`bip340sig`:`sig`]
@@ -652,18 +652,16 @@ A writer of an invoice:
       - MUST set `invoice_amount` to the *expected amount*.
   - otherwise (invoice not requested, e.g. for user to scan directly):
     - MUST set `invreq_chain` as it would for an invoice_request.
-    - MUST set `offer_description` and `offer_node_id` as it would for an offer.
-    - MUST NOT set `invreq_payer_id`.
+    - MUST set `offer_description` as it would for an offer.
+    - MUST NOT set `invreq_payer_id` or `offer_node_id`.
   - MUST set `invoice_payment_hash` to the SHA256 hash of the
     `payment_preimage` that will be given in return for payment.
-  - if `offer_node_id` is not present:
-    - if the `invoice_request` was not communicated securely (i.e. privately):
-      - SHOULD set `invoice_code` to a short string for verification.
-    - MUST NOT set `signature`.
+  - if `offer_node_id` is present:
+    - MUST set `invoice_node_id` to `offer_node_id`.
   - otherwise:
-    - MUST NOT set `invoice_code`.
-    - MUST specify exactly one signature TLV element: `signature`.
-      - MUST set `sig` to the signature using `offer_node_id` as described in [Signature Calculation](#signature-calculation).
+    - MUST set `invoice_node_id` to a valid public key.
+  - MUST specify exactly one signature TLV element: `signature`.
+    - MUST set `sig` to the signature using `invoice_node_id` as described in [Signature Calculation](#signature-calculation).
   - if it requires multiple parts to pay the invoice:
     - MUST set `invoice_features`.`features` bit `MPP/compulsory`
   - or if it allows multiple parts to pay the invoice:
@@ -692,6 +690,7 @@ A reader of an invoice:
   - MUST reject the invoice if `invoice_amount` is not present.
   - MUST reject the invoice if `invoice_created_at` is not present.
   - MUST reject the invoice if `invoice_payment_hash` is not present.
+  - MUST reject the invoice if `invoice_node_id` is not present.
   - if `invoice_features` contains unknown _odd_ bits that are non-zero:
     - MUST ignore the bit.
   - if `invoice_features` contains unknown _even_ bits that are non-zero:
@@ -709,12 +708,9 @@ A reader of an invoice:
   - if the invoice is a response to an `invoice_request`:
     - MUST reject the invoice if all fields less than type 160 do not exactly match the `invoice_request`.
     - if `offer_node_id` is present (invoice_request for an offer):
-      - MUST reject the invoice if `invoice_code` is present.
-      - MUST reject the invoice if `signature` is not a valid signature using `offer_node_id` as described in [Signature Calculation](#signature-calculation).
+	  - MUST reject the invoice if `invoice_node_id` is not equal to `offer_node_id`.
     - otherwise (invoice_request without an offer):
-      - MUST reject the invoice if `signature` is present.
-      - if `invoice_code` is present:
-        - SHOULD reject the invoice if it cannot confirm that `invoice_code` is correct, out-of-band .
+      - MAY reject the invoice if it cannot confirm that `invoice_node_id` is correct, out-of-band.
   - otherwise: (a invoice presented without being requested, eg. scanned by user):
     - if `invreq_chain` is not present:
        - MUST reject the invoice if bitcoin is not a supported chain.
@@ -722,7 +718,7 @@ A reader of an invoice:
        - MUST reject the invoice if `invreq_chain` is not a supported chain.
     - MUST reject the invoice if `invreq_payer_id` is present.
     - MUST reject the invoice if `offer_description` is not present.
-    - MUST reject the invoice if `offer_node_id` is not present.
+  - MUST reject the invoice if `signature` is not a valid signature using `invoice_node_id` as described in [Signature Calculation](#signature-calculation).
   - if `invoice_features` contains the MPP/compulsory bit:
     - SHOULD pay the invoice via multiple separate blinded paths.
   - otherwise, if `invoice_features` contains the MPP/optional bit:
@@ -762,7 +758,7 @@ The default `invoice_relative_expiry` of 7200 seconds, which is generally a
 sufficient time for payment, even if new channels need to be opened.
 
 Blinded paths provide an equivalent to `payment_secret` and `payment_metadata` used in BOLT 11.
-Even if `offer_node_id` or `invreq_payer_id` is public, we force the use of blinding paths to keep these features.
+Even if `invoice_node_id` or `invreq_payer_id` is public, we force the use of blinding paths to keep these features.
 If the recipient does not care about the added privacy offered by blinded paths, they can create a path of length 1 with only themselves.
 
 Rather than provide detailed per-hop-payinfo for each hop in a blinded path, we aggregate the fees and CLTV deltas.
@@ -770,11 +766,8 @@ This avoids trivially revealing any distinguishing non-uniformity which may dist
 
 In the case of an invoice where there was no offer (just an invoice
 request), the payer needs to ensure that the invoice is from the
-intended payment recipient.  This is difficult if the invoice request
-was displayed as a QR code on an ATM: the use of an invoice_code in
-the invoice allows such a payer to display and confirm before payment.
-A 6 digit code provides a 1-in-a-billion chance of paying the wrong
-invoice (and the other cases are detectable).
+intended payment recipient.  This is the basis for the suggestion to
+confirm the invoice_node_id for this case.
 
 # Invoice Errors
 
