@@ -598,47 +598,37 @@ The sender:
 
 The receiver:
 
-- MUST verify the integrity AND authenticity of the `channel_announcement_2`
-  message by verifying the signature. This verification will depend on the
-  channel type along with which fields have been set in the message.
+- If `short_channel_id`, `outpoint`, `capacity_satoshis`, `node_id_1`, `node_id_2` or `signature` are missing:
+    - SHOULD send a `warning`.
+    - MAY close the connection.
+    - MUST ignore the message.
 - Either the `short_channel_id` or the `outpoint` may be used to retrieve the
   channel's funding script. This can then be used to determine if the channel in
   question is a P2WSH channel or a P2TR channel.
 - If the channel is a P2WSH channel:
-    - The `bitcoin_key_1` and `bitcoin_key_2` fields MUST be set and the
-      `merkle_root_hash` field MUST NOT be set. The message should be ignored
-      otherwise.
-    - The `signature` field must be valid according to the rules defined in
-      [Verifying the `channel_announcement_2` signature](#verifying-the-channel_announcement_2-signature).
-- otherwise:
-    - The `bitcoin_key_1`, `bitcoin_key_2` and `merkle_root_hash` fields are
-      optional.
-    - The `signature` field must be valid according to the rules defined in
-      [Verifying the `channel_announcement_2` signature](#verifying-the-channel_announcement_2-signature).
-- If the `signature` is invalid:
+    - If `bitcoin_key_1` or `bitcoin_key_2` fields are missing, or `merkle_root_hash` is present:
+        - MUST ignore the message.
+- If `signature` field is not valid according to the rules defined in
+  [Verifying the `channel_announcement_2` signature](#verifying-the-channel_announcement_2-signature):
     - SHOULD send a `warning`.
     - MAY close the connection.
     - MUST ignore the message.
+- If `node_id_1` OR `node_id_2` are blacklisted:
+    - SHOULD ignore the message.
 - otherwise:
-    - if `node_id_1` OR `node_id_2` are blacklisted:
-        - SHOULD ignore the message.
+    - if the transaction referred to was NOT previously announced as a channel:
+        - SHOULD queue the message for rebroadcasting.
+          - MAY choose NOT to for messages longer than the minimum expected length.
+          - if it has previously received a valid `channel_announcement_v2`, for
+            the same transaction, in the same block, but for a different
+            `node_id_1` or `node_id_2`:
+              - SHOULD blacklist the previous message's `node_id_1` and `node_id_2`,
+                as well as this `node_id_1` and `node_id_2` AND forget any channels
+                connected to them.
     - otherwise:
-        - if the transaction referred to was NOT previously announced as a
-          channel:
-            - SHOULD queue the message for rebroadcasting.
-            - MAY choose NOT to for messages longer than the minimum expected
-              length.
-        - if it has previously received a valid `channel_announcement_v2`, for
-          the same transaction, in the same block, but for a different
-          `node_id_1` or `node_id_2`:
-            - SHOULD blacklist the previous message's `node_id_1` and `node_id_2`,
-              as well as this `node_id_1` and `node_id_2` AND forget any channels
-              connected to them.
-        - otherwise:
-            - SHOULD store this `channel_announcement`.
-
-- once its funding output has been spent OR reorganized out:
-    - SHOULD forget a channel after a 12-block delay.
+        - SHOULD store this `channel_announcement`.
+- Once this announced output has been spent OR reorganized out:
+    - SHOULD forget a channel after a 72-block delay.
 
 #### TLV Defaults
 
@@ -759,7 +749,7 @@ The following subtypes are defined:
 
 The sender:
 
-- MUST set TLV fields 0, 2 and 4.
+- MUST set TLV fields 0 (`features`), 2 (`block_height`) and 4 (`node_id`).
 - MUST set `signature` to a valid [BIP340][bip-340] signature for the
   `node_id` key. The message to be signed is
   `MsgHash("node_announcement_2", "signature", m)` where `m` is the
@@ -772,21 +762,18 @@ The sender:
   `node_announcement_2` it has previously created. The `blockheight` should
   always be greater than or equal to funding block of the oldest channel that
   the node has advertised via `channel_announcement_2`.
-- If the node wishes to announce its willingness to accept incoming network
-  connections:
-    - SHOULD set at least one of types 7-10.
 - SHOULD set an address type (`ipv4_address`, `ipv6_address`, `tor_v3_address`
   and/or `dns_hostname`) for each public network address that expects incoming
   connections.
 - SHOULD ensure that any specified `ipv4_addr` AND `ipv6_addr` are routable
   addresses.
-- MUST not create a `ipv4_addr`, `ipv6_addr` or `dns_hostname` with a `port`
+- MUST not create a `ipv4_addr`, `ipv6_addr`, `tor_v3_address` or `dns_hostname` with a `port`
   equal to 0.
 - MUST set `features` according to [BOLT #9][bolt-9-features].
 
 The receiver:
 
-- If type 0, 2 or 4 is missing:
+- If type 0 (`features`), 2 (`block_height`) or 4 (`node_id`) is missing:
     - SHOULD send a `warning`.
     - MAY close the connection.
     - MUST ignore the message.
@@ -797,18 +784,18 @@ The receiver:
 - if `node_id` is NOT a valid compressed public key:
     - SHOULD send a `warning`.
     - MAY close the connection.
-    - MUST NOT process the message further.
+    - MUST ignore the message.
 - if `signature` is NOT a valid [BIP340][bip-340] signature (using
   `node_id` over the message):
     - SHOULD send a `warning`.
     - MAY close the connection.
-    - MUST NOT process the message further.
+    - MUST ignore the message.
 - if `features` field contains _unknown even bits_:
     - SHOULD NOT connect to the node.
     - Unless paying a [BOLT #11][bolt-11] invoice which does not have the same
       bit(s) set, MUST NOT attempt to send payments _to_ the node.
     - MUST NOT route a payment _through_ the node.
-- if `port` is equal to 0 for any `ipv6_addr` OR `ipv4_addr` OR `hostname`:
+- if `port` is equal to 0 for any `ipv6_addr`, `ipv4_addr`, `tor_v3_address` OR `dns_hostname`:
     - SHOULD ignore that address.
 - if `node_id` is NOT previously known from a `channel_announcement` OR
   `channel_announcement_2` message, OR if `blockheight` is NOT greater than the
@@ -977,6 +964,10 @@ The origin node:
 
 The receiving node:
 
+- If `short_channel_id`, `block_height` or `signature` fields are missing:
+    - SHOULD send a `warning`.
+    - MAY close the connection.
+    - MUST ignore the message.
 - If the `short_channel_id` does NOT match a previous `channel_announcement_2`
   or `channel_announcement`, OR if the channel has been closed in the meantime:
     - MUST ignore `channel_update_2`s that do NOT correspond to one of its own
@@ -986,7 +977,7 @@ The receiving node:
 - if `signature` is NOT a valid [BIP340][bip-340] signature (using `node_id`
   over the message):
     - SHOULD send a `warning` and close the connection.
-    - MUST NOT process the message further.
+    - MUST ignore the message.
 
 ### Query Messages
 
