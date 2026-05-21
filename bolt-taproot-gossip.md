@@ -621,7 +621,7 @@ The receiver:
     - if the transaction referred to was NOT previously announced as a channel:
         - SHOULD queue the message for rebroadcasting.
           - MAY choose NOT to for messages longer than the minimum expected length.
-          - if it has previously received a valid `channel_announcement_v2`, for
+          - if it has previously received a valid `channel_announcement_2`, for
             the same transaction, in the same block, but for a different
             `node_id_1` or `node_id_2`:
               - SHOULD blacklist the previous message's `node_id_1` and `node_id_2`,
@@ -1043,7 +1043,7 @@ they will each have the following information:
     - `announcement_bitcoin_pubnonce_1`,
 
 With the above information, both nodes can now start calculating the partial
-signatures that will be exchanged in the `announcement_signatures_v2` message.
+signatures that will be exchanged in the `announcement_signatures_2` message.
 
 Firstly, the aggregate public key, `P_agg`, that the signature will be valid for
 can be calculated as follows:
