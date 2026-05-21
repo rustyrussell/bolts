@@ -658,32 +658,32 @@ by multiple keys since MuSig2 can be used to construct the single signature.
 1. `tlv_stream`: `node_announcement_2_tlvs`
 2. types:
     1. type: 0 (`features`)
+    2. data:
+        * [`...*byte`:`features`]
     1. type: 1 (`color`)
     2. data:
         * [`rgb_color`:`rgb_color`]
-    2. data:
-        * [`...*byte`: `features`]
     1. type: 2 (`block_height`)
+    2. data:
+        * [`u32`:`block_height`]
     1. type: 3 (`alias`)
     2. data:
         * [`...*utf8`:`alias`]
-    2. data:
-        * [`u32`: `block_height`]
     1. type: 4 (`node_id`)
     2. data:
         * [`point`:`node_id`]
     1. type: 5 (`ipv4_addrs`)
     2. data:
-        * [`...*ipv4_addr`: `ipv4_addresses`]
+        * [`...*ipv4_addr`:`ipv4_addresses`]
     1. type: 7 (`ipv6_addrs`)
     2. data:
-        * [`...*ipv6_addr`: `ipv6_addresses`]
+        * [`...*ipv6_addr`:`ipv6_addresses`]
     1. type: 9 (`tor_v3_addrs`)
     2. data:
-        * [`...*tor_v3_addr`: `tor_v3_addresses`]
+        * [`...*tor_v3_addr`:`tor_v3_addresses`]
     1. type: 11 (`dns_hostnames`)
     2. data:
-        * [`...*dns_hostname`: `dns_hostnames`]
+        * [`...*dns_hostname`:`dns_hostnames`]
     1. type: 160 (`signature`)
     2. data:
         * [`bip340sig`:`sig`]
