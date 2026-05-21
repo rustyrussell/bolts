@@ -232,7 +232,7 @@ The following convenient types are defined:
 ### Pure TLV messages
 
 All the messages defined in this document are pure TLV streams. The signed TLV
-range is defined as the inclusive ranges: 0 to 159 and 1000000000 to 2999999999.
+range is defined as the inclusive ranges: 0 to 239 and 1000000000 to 2999999999.
 
 ### Feature Bits
 
@@ -539,7 +539,7 @@ announced its fee levels and expiry, using `channel_update_2`.
     2. data:
         * [`sha256`:`txid`]
         * [`u16`:`index`]
-    1. type: 160 (`signature`)
+    1. type: 240 (`signature`)
     2. data:
         * [`bip340sig`:`sig`]
 
@@ -715,7 +715,7 @@ by multiple keys since MuSig2 can be used to construct the single signature.
     1. type: 11 (`dns_hostnames`)
     2. data:
         * [`...*dns_hostname`:`dns_hostnames`]
-    1. type: 160 (`signature`)
+    1. type: 240 (`signature`)
     2. data:
         * [`bip340sig`:`sig`]
 
@@ -894,7 +894,7 @@ multiple times, in order to change fees.
     1. type: 18 (`fee_proportional_millionths`)
     2. data:
         * [`u32`:`fee_proportional_millionths`]
-    1. type: 160 (`signature`)
+    1. type: 240 (`signature`)
     2. data:
         * [`bip340sig`:`sig`]
 
