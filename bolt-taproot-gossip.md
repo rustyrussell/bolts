@@ -975,7 +975,7 @@ The receiving node:
 - SHOULD accept `channel_update_2`s for its own channels (even if non-public),
   in order to learn the associated origin nodes' forwarding parameters.
 - if `signature` is NOT a valid [BIP340][bip-340] signature (using `node_id`
-  over the message):
+  over MsgHash("channel_update_2", "signature", m)):
     - SHOULD send a `warning` and close the connection.
     - MUST ignore the message.
 
@@ -1200,8 +1200,8 @@ P_internal = KeyAgg(MuSig2.KeySort(`bitcoin_key_1`, `bitcoin_key_2`))
     - Fail the check if `P_internal != P_o`
 - otherwise, if the `merkle_root_hash` is provided:
     - let `p` = `bytes(P_internal)`
-    - let `t = hash_TapTweak(p || merkle_root_hash)` where `hash_TapTweak` uses
-      the `hash_name(x)` method defined in BIP340.
+    - let `t = H("TapTweak", p || merkle_root_hash)` where H is the BIP340 tagged
+      hash function as defined in [BOLT 12][bolt-12].
     - Fail if `P_o != P_internal + t*G`
 
 If the above check is successful, then it has been shown that the output key
@@ -1237,7 +1237,7 @@ The signature can then be verified as follows:
 
 The following `MsgHash` function is defined which can be used to construct a
 32-byte message that can be used as a valid input to the [BIP-340][bip-340]
-signing and verification algorithms.
+signing and verification algorithms.  This is the same format used by [BOLT #12][bolt-12].
 
 _MsgHash:_
 - _inputs_:
@@ -1266,6 +1266,7 @@ ideas mentioned in the following references:
   Channel Announcements + Proof Verification which expands on the details of how
   taproot channel verification should work.
 
+[bolt-12]: ./12-offer-encoding.md
 [bolt-7]: ./07-routing-gossip.md
 [bolt-3]: ./03-transactions.md
 [bolt-7-alias-security]: ./07-routing-gossip.md#security-considerations-for-node-aliases
